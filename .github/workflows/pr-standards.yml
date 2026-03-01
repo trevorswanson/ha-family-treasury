@@ -59,6 +59,7 @@ jobs:
           PY
 
   linked-issue:
+    if: ${{ github.event.pull_request.user.login != 'renovate[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Ensure PR references an issue
