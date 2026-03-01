@@ -1,10 +1,12 @@
+<img alt="Family Treasury logo" src="https://raw.githubusercontent.com/trevorswanson/ha-family-treasury/refs/heads/main/custom_components/family_treasury/brand/logo.png" />
+
 # Family Treasury
 
 Family Treasury is a Home Assistant custom integration for virtual family banking.
 
 It provides multi-account balances, configurable APR compounding logic, transaction history, and automation-friendly service calls.
 
-## v0.1 Features
+## Features
 
 - Multiple virtual accounts managed by `account_id`
 - Account lifecycle services:
@@ -21,15 +23,16 @@ It provides multi-account balances, configurable APR compounding logic, transact
 - Sensors per account:
   - balance
   - pending interest
-- Transaction history query service:
-  - `family_treasury.get_transactions` (response-capable, filter + pagination)
+- Transaction history:
+  - Lovelace card (for custom dashboards)
+  - Service action `family_treasury.get_transactions` (response-capable, filter + pagination)
 - Persistent storage with monthly ledger partitions and snapshots
 
-## Deferred (Not in v0.1)
+## Roadma[]
 
-- Savings buckets/sub-accounts runtime behavior
-- Account-to-account transfers
-- Loan tracking or screen-time conversion features
+- [ ] Savings buckets/sub-accounts runtime behavior
+- [ ] Account-to-account transfers
+- [ ] Loan tracking or screen-time conversion features
 
 ## Installation
 
