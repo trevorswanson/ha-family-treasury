@@ -13,8 +13,8 @@ views:
         entities:
           - entity: sensor.emma_balance
         hours_to_show: 720
-      - type: markdown
-        title: Recent Transactions
-        content: |
-          Use `family_treasury.get_transactions` in Developer Tools > Actions,
-          or display `recent_transactions` from the balance sensor attributes.
+      - type: custom:family-treasury-transactions
+        title: Emma Recent Transactions
+        account_id: emma
+        page_size: 10
+        enable_pagination: true

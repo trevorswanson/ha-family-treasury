@@ -70,6 +70,7 @@ from .models import (
     parse_major_to_minor,
     pending_micro_to_major_decimal,
     utcnow_iso,
+    warm_currency_formatters,
 )
 from .storage import FamilyTreasuryStorage
 
@@ -97,6 +98,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         self._lock = asyncio.Lock()
         self._accounts: dict[str, AccountRecord] = {}
         self._recent_transactions: dict[str, list[dict[str, Any]]] = {}
+        self._formatter_pairs_warmed: set[tuple[str, str]] = set()
         self._unsub_scheduler = None
 
     @property
@@ -170,6 +172,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 account_id
             )
 
+        await self._async_prime_formatter_cache()
         await self.async_process_interest(snapshot_after_run=True)
         self.async_set_updated_data(await self._async_update_data())
 
@@ -449,6 +452,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             raise ValueError("Start datetime must be before end datetime")
         tx_type = payload.get(CONF_TYPE)
 
+        await self._async_prime_formatter_cache()
         result = await self.storage.async_list_transactions(
             account_id=account_id,
             start=start,
@@ -700,7 +704,25 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         ]
 
     async def _async_refresh_state(self) -> None:
+        await self._async_prime_formatter_cache()
         self.async_set_updated_data(await self._async_update_data())
+
+    async def _async_prime_formatter_cache(self) -> None:
+        warmed = getattr(self, "_formatter_pairs_warmed", set())
+        pairs = {
+            (account.currency_code, account.locale) for account in self._accounts.values()
+        }
+        missing = pairs - warmed
+        if not missing:
+            return
+
+        async_add_executor_job = getattr(self.hass, "async_add_executor_job", None)
+        if async_add_executor_job is not None:
+            await async_add_executor_job(warm_currency_formatters, missing)
+        else:
+            warm_currency_formatters(missing)
+        warmed.update(missing)
+        self._formatter_pairs_warmed = warmed
 
     async def _maybe_snapshot(
         self,

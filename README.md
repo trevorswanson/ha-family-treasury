@@ -29,7 +29,6 @@ It provides multi-account balances, configurable APR compounding logic, transact
 
 - Savings buckets/sub-accounts runtime behavior
 - Account-to-account transfers
-- Custom Lovelace frontend card
 - Loan tracking or screen-time conversion features
 
 ## Installation
@@ -158,6 +157,46 @@ data:
 
 - [`examples/dashboard.yaml`](examples/dashboard.yaml)
 - [`examples/scripts.yaml`](examples/scripts.yaml)
+
+## Lovelace Card
+
+This integration ships a custom Lovelace card:
+
+- Type: `custom:family-treasury-transactions`
+- Required config:
+  - `account_id`
+- Optional config:
+  - `title` (default: `Recent Transactions`)
+  - `page_size` (default: `10`)
+  - `enable_pagination` (default: `true`)
+  - `allow_page_size_override` (default: `false`)
+  - `page_size_options` (default: `[5, 10, 25, 50]`)
+
+Example:
+
+```yaml
+type: custom:family-treasury-transactions
+title: Emma Recent Transactions
+account_id: emma
+page_size: 10
+enable_pagination: true
+allow_page_size_override: true
+page_size_options:
+  - 5
+  - 10
+  - 25
+```
+
+### Resource Loading Behavior
+
+When the integration is loaded, it automatically:
+
+1. Serves the card JavaScript from `/family_treasury/family-treasury-transactions-card.js`
+2. Registers the URL via `frontend.add_extra_js_url`
+3. Creates a Lovelace storage resource entry in storage mode if one does not already exist
+
+In standard Home Assistant setups, no manual Lovelace resource configuration is required.
+If frontend or Lovelace is intentionally disabled, automatic card loading is unavailable.
 
 ## Integration Icon
 

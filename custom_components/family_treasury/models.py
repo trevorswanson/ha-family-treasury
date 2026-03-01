@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
@@ -217,6 +218,23 @@ def format_pending_micro_amount(
         currency_code,
         locale,
     )
+
+
+def warm_currency_formatters(pairs: Iterable[tuple[str, str]]) -> None:
+    """Prime Babel formatting data for currency/locale pairs.
+
+    This is intended to be called in an executor before first formatting usage so
+    any Babel/pytz file I/O does not happen inside the asyncio event loop.
+    """
+
+    if babel_format_currency is None:
+        return
+
+    for currency_code, locale in pairs:
+        try:
+            babel_format_currency(Decimal("0"), currency_code, locale=locale)
+        except Exception:  # pragma: no cover
+            continue
 
 
 def account_defaults_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
