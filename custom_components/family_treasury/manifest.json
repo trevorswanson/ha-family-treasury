@@ -1,0 +1,13 @@
+{
+  "domain": "family_treasury",
+  "name": "Family Treasury",
+  "codeowners": [
+    "@trevorswanson"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/trevorswanson/ha-family-treasury",
+  "issue_tracker": "https://github.com/trevorswanson/ha-family-treasury/issues",
+  "iot_class": "local_polling",
+  "homeassistant": "2026.2.3",
+  "version": "0.1.0"
+}

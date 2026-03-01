@@ -1,0 +1,59 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            requirements_test.txt
+            tox.ini
+
+      - name: Install test tooling
+        run: python -m pip install --upgrade pip tox diff-cover
+
+      - name: Run tests with coverage gates
+        run: tox -q -e coverage
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: MishaKav/pytest-coverage-comment@v1.2.0
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+          junitxml-path: ./pytest.xml
+          title: Coverage Report
+
+      - name: Enforce changed-line coverage (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
+          diff-cover coverage.xml --compare-branch "origin/${{ github.base_ref }}" --fail-under 100 --include custom_components/family_treasury/*
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            pytest.xml
+            htmlcov/

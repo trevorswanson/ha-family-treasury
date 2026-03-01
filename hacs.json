@@ -1,0 +1,9 @@
+{
+  "name": "Family Treasury",
+  "domains": [
+    "family_treasury"
+  ],
+  "content_in_root": false,
+  "render_readme": true,
+  "homeassistant": "2026.2.3"
+}

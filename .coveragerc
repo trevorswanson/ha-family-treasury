@@ -1,0 +1,8 @@
+[run]
+source = custom_components/family_treasury
+branch = True
+
+[report]
+show_missing = True
+skip_covered = True
+precision = 2

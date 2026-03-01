@@ -1,0 +1,17 @@
+family_treasury_deposit_emma:
+  alias: Family Treasury Deposit (Emma)
+  sequence:
+    - action: family_treasury.deposit
+      data:
+        account_id: emma
+        amount: 1.00
+        description: Chore reward
+
+family_treasury_withdraw_emma:
+  alias: Family Treasury Withdraw (Emma)
+  sequence:
+    - action: family_treasury.withdraw
+      data:
+        account_id: emma
+        amount: 2.50
+        description: Toy purchase

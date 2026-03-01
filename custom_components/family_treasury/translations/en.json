@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Family Treasury",
+        "description": "Configure integration defaults.",
+        "data": {
+          "default_apr_percent": "Default APR (%)",
+          "interest_calc_frequency": "Interest calculation frequency",
+          "interest_payout_frequency": "Interest payout frequency",
+          "currency_code": "Currency code",
+          "locale": "Locale"
+        }
+      }
+    },
+    "error": {
+      "invalid_config": "Invalid configuration"
+    },
+    "abort": {
+      "single_instance_allowed": "Only one Family Treasury configuration is allowed"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Family Treasury options",
+        "data": {
+          "default_apr_percent": "Default APR (%)",
+          "interest_calc_frequency": "Interest calculation frequency",
+          "interest_payout_frequency": "Interest payout frequency",
+          "currency_code": "Currency code",
+          "locale": "Locale",
+          "apply_defaults_to_existing": "Apply defaults to existing accounts"
+        }
+      }
+    },
+    "error": {
+      "invalid_config": "Invalid configuration"
+    }
+  }
+}

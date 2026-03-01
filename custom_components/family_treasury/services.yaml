@@ -1,0 +1,227 @@
+create_account:
+  name: Create Account
+  description: Create a new Family Treasury account.
+  fields:
+    account_id:
+      name: Account ID
+      description: Unique slug account ID (for example emma).
+      required: true
+      selector:
+        text:
+    display_name:
+      name: Display Name
+      description: Friendly account name.
+      required: true
+      selector:
+        text:
+    initial_balance:
+      name: Initial Balance
+      description: Optional initial balance in major units.
+      required: false
+      selector:
+        number:
+          mode: box
+    apr_percent:
+      name: APR Percent
+      description: Optional account APR override.
+      required: false
+      selector:
+        number:
+          min: 0
+          mode: box
+    interest_calc_frequency:
+      name: Interest Calculation Frequency
+      required: false
+      selector:
+        select:
+          options:
+            - daily
+            - weekly
+            - monthly
+    interest_payout_frequency:
+      name: Interest Payout Frequency
+      required: false
+      selector:
+        select:
+          options:
+            - daily
+            - weekly
+            - monthly
+    currency_code:
+      name: Currency Code
+      required: false
+      selector:
+        text:
+    locale:
+      name: Locale
+      required: false
+      selector:
+        text:
+
+update_account:
+  name: Update Account
+  description: Update account settings.
+  fields:
+    account_id:
+      name: Account ID
+      required: true
+      selector:
+        text:
+    display_name:
+      name: Display Name
+      required: false
+      selector:
+        text:
+    active:
+      name: Active
+      required: false
+      selector:
+        boolean:
+    apr_percent:
+      name: APR Percent
+      required: false
+      selector:
+        number:
+          min: 0
+          mode: box
+    interest_calc_frequency:
+      name: Interest Calculation Frequency
+      required: false
+      selector:
+        select:
+          options:
+            - daily
+            - weekly
+            - monthly
+    interest_payout_frequency:
+      name: Interest Payout Frequency
+      required: false
+      selector:
+        select:
+          options:
+            - daily
+            - weekly
+            - monthly
+    currency_code:
+      name: Currency Code
+      required: false
+      selector:
+        text:
+    locale:
+      name: Locale
+      required: false
+      selector:
+        text:
+
+deposit:
+  name: Deposit
+  description: Deposit funds into an account.
+  fields:
+    account_id:
+      name: Account ID
+      required: true
+      selector:
+        text:
+    amount:
+      name: Amount
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+    description:
+      name: Description
+      required: false
+      selector:
+        text:
+
+withdraw:
+  name: Withdraw
+  description: Withdraw funds from an account.
+  fields:
+    account_id:
+      name: Account ID
+      required: true
+      selector:
+        text:
+    amount:
+      name: Amount
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+    description:
+      name: Description
+      required: false
+      selector:
+        text:
+
+adjust_balance:
+  name: Adjust Balance
+  description: Apply a signed administrative adjustment.
+  fields:
+    account_id:
+      name: Account ID
+      required: true
+      selector:
+        text:
+    amount:
+      name: Amount
+      required: true
+      selector:
+        number:
+          mode: box
+    description:
+      name: Description
+      required: false
+      selector:
+        text:
+
+get_transactions:
+  name: Get Transactions
+  description: Query transactions with filters and pagination.
+  fields:
+    account_id:
+      name: Account ID
+      required: false
+      selector:
+        text:
+    start:
+      name: Start
+      description: Optional start datetime (ISO format).
+      required: false
+      selector:
+        text:
+    end:
+      name: End
+      description: Optional end datetime (ISO format).
+      required: false
+      selector:
+        text:
+    type:
+      name: Type
+      required: false
+      selector:
+        select:
+          options:
+            - deposit
+            - withdraw
+            - adjustment
+            - interest_accrual
+            - interest_payout
+    limit:
+      name: Limit
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 500
+          mode: box
+    offset:
+      name: Offset
+      required: false
+      selector:
+        number:
+          min: 0
+          mode: box

@@ -1,0 +1,94 @@
+name: PR Standards
+
+on:
+  pull_request:
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages follow Conventional Commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+
+          base = os.environ["BASE_SHA"]
+          head = os.environ["HEAD_SHA"]
+
+          messages = subprocess.check_output(
+              ["git", "log", "--format=%s", f"{base}..{head}"],
+              text=True,
+          ).splitlines()
+
+          pattern = re.compile(
+              r"^(revert:\s)?"
+              r"(build|chore|ci|docs|feat|fix|perf|refactor|style|test)"
+              r"(\([a-z0-9._/-]+\))?"
+              r"(!)?:\s.+"
+          )
+
+          invalid = []
+          for message in messages:
+              if message.startswith("Merge "):
+                  continue
+              if not pattern.match(message):
+                  invalid.append(message)
+
+          if invalid:
+              print("The following commit messages are not Conventional Commits:")
+              for msg in invalid:
+                  print(f"  - {msg}")
+              print(
+                  "\nExpected format: type(scope): description "
+                  "(scope and ! are optional)."
+              )
+              sys.exit(1)
+
+          print("All commit messages follow Conventional Commits.")
+          PY
+
+  linked-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure PR references an issue
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+
+          with open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8") as fh:
+              event = json.load(fh)
+
+          pr = event.get("pull_request", {})
+          title = pr.get("title") or ""
+          body = pr.get("body") or ""
+          text = f"{title}\n{body}"
+
+          issue_ref = re.search(r"#\d+", text)
+          issue_url = re.search(
+              r"https://github\.com/[^/\s]+/[^/\s]+/issues/\d+",
+              text,
+          )
+
+          if issue_ref or issue_url:
+              print("PR contains an issue reference.")
+              sys.exit(0)
+
+          print("PR must reference an existing issue (for example: #123).")
+          sys.exit(1)
+          PY
