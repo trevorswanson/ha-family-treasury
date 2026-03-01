@@ -1,0 +1,32 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  docs-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            requirements_test.txt
+            tox.ini
+
+      - name: Install docs tooling
+        run: python -m pip install --upgrade pip tox
+
+      - name: Run docs lint and link checks
+        run: tox -q -e docs
