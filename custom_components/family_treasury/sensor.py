@@ -25,6 +25,7 @@ from .const import (
     SIGNAL_ACCOUNTS_UPDATED,
 )
 from .coordinator import FamilyTreasuryCoordinator
+from .models import currency_minor_exponent
 
 
 async def async_setup_entry(
@@ -83,7 +84,10 @@ class FamilyTreasuryBaseSensor(CoordinatorEntity[FamilyTreasuryCoordinator], Sen
 
     @property
     def suggested_display_precision(self) -> int | None:
-        return 6
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return None
+        return currency_minor_exponent(account.currency_code)
 
     @property
     def native_unit_of_measurement(self) -> str | None:

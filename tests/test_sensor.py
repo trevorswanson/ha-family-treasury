@@ -73,7 +73,7 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sensor.native_value, Decimal("10.00"))
         self.assertEqual(sensor.native_unit_of_measurement, "USD")
         self.assertEqual(sensor.device_class, SensorDeviceClass.MONETARY)
-        self.assertEqual(sensor.suggested_display_precision, 6)
+        self.assertEqual(sensor.suggested_display_precision, 2)
         self.assertIn("formatted_balance", sensor.extra_state_attributes)
 
     async def test_pending_interest_sensor_properties(self) -> None:
@@ -105,7 +105,19 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(sensor_missing.available)
         self.assertIsNone(sensor_missing.native_value)
         self.assertIsNone(sensor_missing.native_unit_of_measurement)
+        self.assertIsNone(sensor_missing.suggested_display_precision)
         self.assertIsNone(sensor_missing.extra_state_attributes)
+
+    async def test_precision_matches_currency_exponent(self) -> None:
+        coordinator = _CoordinatorStub()
+        coordinator._accounts["emma"].currency_code = "ISK"
+
+        sensor = object.__new__(FamilyTreasuryBalanceSensor)
+        sensor.coordinator = coordinator
+        sensor._account_id = "emma"
+        sensor._entry = SimpleNamespace(entry_id="entry-1")
+
+        self.assertEqual(sensor.suggested_display_precision, 0)
 
     async def test_async_setup_entry_adds_new_entities_on_signal(self) -> None:
         coordinator = _CoordinatorStub()
