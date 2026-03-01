@@ -215,7 +215,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                         "type": "deposit",
                         "amount_minor": 123,
                         "balance_after_minor": 123,
-                        "meta": {},
+                        "meta": {"description": "Allowance"},
                     },
                     {
                         "tx_id": 2,
@@ -246,6 +246,9 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["total"], 2)
         self.assertIn("formatted_amount", result["transactions"][0])
         self.assertNotIn("formatted_amount", result["transactions"][1])
+        self.assertNotIn("description", result["transactions"][0])
+        self.assertNotIn("description", result["transactions"][1])
+        self.assertEqual(result["transactions"][0]["meta"]["description"], "Allowance")
 
     async def test_async_get_transactions_validates_filters(self) -> None:
         coordinator = _build_coordinator()

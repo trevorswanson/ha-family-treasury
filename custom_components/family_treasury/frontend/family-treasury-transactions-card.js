@@ -225,7 +225,7 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
       .map((tx) => {
         const occurredAt = this._formatDate(tx.occurred_at);
         const type = this._escapeHtml(String(tx.type ?? ""));
-        const description = this._escapeHtml(String(tx.description ?? ""));
+        const description = this._escapeHtml(String(tx.meta?.description ?? ""));
         const amount = this._escapeHtml(
           String(tx.formatted_amount ?? tx.amount_major ?? tx.amount_minor ?? ""),
         );
