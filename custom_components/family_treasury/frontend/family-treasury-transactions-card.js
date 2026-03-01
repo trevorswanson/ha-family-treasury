@@ -32,7 +32,7 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
       config.page_size_options,
       pageSize,
     );
-    const types = this._normalizeTypes(config.types ?? config.type ?? null);
+    const types = this._normalizeTypes(config.types ?? null);
 
     this._config = {
       title: config.title ?? "Recent Transactions",
@@ -125,7 +125,7 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
     const invalid = normalized.filter((value) => !allowed.includes(value));
     if (invalid.length > 0) {
       throw new Error(
-        `\`types\` contains unsupported values: ${invalid.join(", ")}`,
+        `\`types\` contains unsupported values: ${invalid.join(", ")}. Valid \`types\` are: ${allowed.join(", ")}`,
       );
     }
 
