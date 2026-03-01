@@ -32,6 +32,7 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
       config.page_size_options,
       pageSize,
     );
+    const types = this._normalizeTypes(config.types ?? config.type ?? null);
 
     this._config = {
       title: config.title ?? "Recent Transactions",
@@ -40,6 +41,7 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
       enable_pagination: enablePagination,
       allow_page_size_override: allowPageSizeOverride,
       page_size_options: pageSizeOptions,
+      types,
     };
 
     this._pageSize = pageSize;
@@ -100,6 +102,36 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
     return this._pageSize;
   }
 
+  _normalizeTypes(rawTypes) {
+    if (rawTypes === null || rawTypes === undefined) {
+      return null;
+    }
+
+    const allowed = [
+      "deposit",
+      "withdraw",
+      "adjustment",
+      "interest_accrual",
+      "interest_payout",
+    ];
+    const values = Array.isArray(rawTypes) ? rawTypes : [rawTypes];
+    const normalized = values
+      .map((value) => String(value).trim())
+      .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
+    if (normalized.length === 0) {
+      return null;
+    }
+
+    const invalid = normalized.filter((value) => !allowed.includes(value));
+    if (invalid.length > 0) {
+      throw new Error(
+        `\`types\` contains unsupported values: ${invalid.join(", ")}`,
+      );
+    }
+
+    return normalized;
+  }
+
   async _fetchTransactions({ offset, allowClamp }) {
     if (!this._hass || !this._config) {
       return;
@@ -113,15 +145,20 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
     this._render();
 
     try {
+      const serviceData = {
+        account_id: this._config.account_id,
+        limit: pageSize,
+        offset: requestOffset,
+      };
+      if (this._config.types !== null) {
+        serviceData.type = this._config.types;
+      }
+
       const result = await this._hass.callWS({
         type: "call_service",
         domain: "family_treasury",
         service: "get_transactions",
-        service_data: {
-          account_id: this._config.account_id,
-          limit: pageSize,
-          offset: requestOffset,
-        },
+        service_data: serviceData,
         return_response: true,
       });
 

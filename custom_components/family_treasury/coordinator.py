@@ -51,6 +51,7 @@ from .const import (
     TX_DEPOSIT,
     TX_INTEREST_ACCRUAL,
     TX_INTEREST_PAYOUT,
+    TX_TYPES,
     TX_WITHDRAW,
 )
 from .interest import (
@@ -450,14 +451,33 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         end = self._parse_service_datetime(payload.get(CONF_END))
         if start and end and start > end:
             raise ValueError("Start datetime must be before end datetime")
-        tx_type = payload.get(CONF_TYPE)
+        raw_type_filter = payload.get(CONF_TYPE)
+        tx_types: set[str] | None
+        if raw_type_filter is None:
+            tx_types = None
+        elif isinstance(raw_type_filter, str):
+            tx_types = {raw_type_filter}
+        elif isinstance(raw_type_filter, list):
+            tx_types = {
+                str(item).strip() for item in raw_type_filter if str(item).strip()
+            }
+            if not tx_types:
+                tx_types = None
+        else:
+            raise ValueError("Type filter must be a string or a list of strings")
+
+        if tx_types:
+            invalid_types = sorted(tx_types - TX_TYPES)
+            if invalid_types:
+                invalid_label = ", ".join(invalid_types)
+                raise ValueError(f"Invalid transaction type filter(s): {invalid_label}")
 
         await self._async_prime_formatter_cache()
         result = await self.storage.async_list_transactions(
             account_id=account_id,
             start=start,
             end=end,
-            tx_type=tx_type,
+            tx_types=tx_types,
             limit=int(payload.get(CONF_LIMIT, 100)),
             offset=int(payload.get(CONF_OFFSET, 0)),
         )
@@ -690,7 +710,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             account_id=account_id,
             start=None,
             end=None,
-            tx_type=None,
+            tx_types=None,
             limit=RECENT_TRANSACTIONS_LIMIT,
             offset=0,
         )

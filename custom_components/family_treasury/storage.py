@@ -129,7 +129,7 @@ class FamilyTreasuryStorage:
         account_id: str | None,
         start: datetime | None,
         end: datetime | None,
-        tx_type: str | None,
+        tx_types: set[str] | None,
         limit: int,
         offset: int,
     ) -> dict[str, Any]:
@@ -145,7 +145,7 @@ class FamilyTreasuryStorage:
             for row in partition["transactions"]:
                 if account_id and row.get("account_id") != account_id:
                     continue
-                if tx_type and row.get("type") != tx_type:
+                if tx_types and row.get("type") not in tx_types:
                     continue
 
                 occurred_at = self._parse_row_datetime(row)

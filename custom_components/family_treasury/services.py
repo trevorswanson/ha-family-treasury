@@ -42,6 +42,10 @@ from .const import (
 )
 
 AMOUNT_VALUE = vol.Any(str, int, float)
+TX_TYPE_FILTER = vol.Any(
+    vol.In(sorted(TX_TYPES)),
+    [vol.In(sorted(TX_TYPES))],
+)
 
 CREATE_ACCOUNT_SCHEMA = vol.Schema(
     {
@@ -82,7 +86,7 @@ GET_TRANSACTIONS_SCHEMA = vol.Schema(
         vol.Optional(CONF_ACCOUNT_ID): cv.slug,
         vol.Optional(CONF_START): vol.Any(cv.datetime, cv.string),
         vol.Optional(CONF_END): vol.Any(cv.datetime, cv.string),
-        vol.Optional(CONF_TYPE): vol.In(sorted(TX_TYPES)),
+        vol.Optional(CONF_TYPE): TX_TYPE_FILTER,
         vol.Optional(CONF_LIMIT, default=100): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=MAX_TRANSACTION_QUERY_LIMIT)
         ),

@@ -250,12 +250,15 @@ get_transactions:
       selector:
         text:
     type:
-      name: Type
-      description: Optional transaction type filter.
-      example: deposit
+      name: Types
+      description: Optional transaction type filters (choose one or more).
+      example:
+        - deposit
+        - withdraw
       required: false
       selector:
         select:
+          multiple: true
           options:
             - deposit
             - withdraw

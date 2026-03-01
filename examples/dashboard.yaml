@@ -16,6 +16,11 @@ views:
             account_id: emma
             page_size: 10
             enable_pagination: true
+            types:
+              - deposit
+              - withdraw
+              - adjustment
+              - interest_payout
             grid_options:
               columns: 36
               rows: auto

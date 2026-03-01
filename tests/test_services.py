@@ -6,6 +6,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import voluptuous as vol
+
 HA_AVAILABLE = True
 try:
     from homeassistant.exceptions import HomeAssistantError
@@ -14,6 +16,7 @@ try:
         CONF_ACCOUNT_ID,
         CONF_AMOUNT,
         CONF_DESCRIPTION,
+        CONF_TYPE,
         DATA_RUNTIME,
         DOMAIN,
         SERVICE_ADJUST_BALANCE,
@@ -155,6 +158,20 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
         ](SimpleNamespace(data={CONF_ACCOUNT_ID: "emma"}))
 
         self.assertEqual(response, {"transactions": [{"tx_id": 1}]})
+
+    async def test_get_transactions_schema_accepts_multi_type(self) -> None:
+        hass, _coordinator, registry = self._build_hass()
+        async_register_services(hass)
+
+        schema = registry._handlers[(DOMAIN, SERVICE_GET_TRANSACTIONS)]["schema"]
+        validated_single = schema({CONF_TYPE: "deposit"})
+        self.assertEqual(validated_single[CONF_TYPE], "deposit")
+
+        validated_multi = schema({CONF_TYPE: ["deposit", "withdraw"]})
+        self.assertEqual(validated_multi[CONF_TYPE], ["deposit", "withdraw"])
+
+        with self.assertRaises(vol.Invalid):
+            schema({CONF_TYPE: ["deposit", "unknown"]})
 
     async def test_value_error_is_wrapped_as_homeassistant_error(self) -> None:
         hass, coordinator, registry = self._build_hass()

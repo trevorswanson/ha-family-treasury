@@ -272,6 +272,37 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
+        with self.assertRaises(ValueError):
+            await coordinator.async_get_transactions({CONF_TYPE: ["deposit", "bad_type"]})
+
+    async def test_async_get_transactions_accepts_multiple_types(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator._accounts = {
+            "emma": AccountRecord(account_id="emma", display_name="Emma")
+        }
+        coordinator._async_prime_formatter_cache = AsyncMock()
+        coordinator.storage.async_list_transactions = AsyncMock(
+            return_value={
+                "transactions": [],
+                "total": 0,
+                "limit": 10,
+                "offset": 0,
+                "next_offset": None,
+            }
+        )
+
+        await coordinator.async_get_transactions(
+            {
+                CONF_ACCOUNT_ID: "emma",
+                CONF_TYPE: ["deposit", "withdraw", "deposit"],
+                CONF_LIMIT: 10,
+                CONF_OFFSET: 0,
+            }
+        )
+
+        called_kwargs = coordinator.storage.async_list_transactions.await_args.kwargs
+        self.assertEqual(called_kwargs["tx_types"], {"deposit", "withdraw"})
+
     async def test_apply_balance_change_and_withdraw(self) -> None:
         coordinator = _build_coordinator()
         account = AccountRecord(

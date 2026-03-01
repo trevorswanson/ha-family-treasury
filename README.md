@@ -143,7 +143,11 @@ data:
 service: family_treasury.get_transactions
 data:
   account_id: emma
-  type: deposit
+  type:
+    - deposit
+    - withdraw
+    - adjustment
+    - interest_payout
   limit: 50
   offset: 0
 ```
@@ -174,6 +178,7 @@ This integration ships a custom Lovelace card:
   - `enable_pagination` (default: `true`)
   - `allow_page_size_override` (default: `false`)
   - `page_size_options` (default: `[5, 10, 25, 50]`)
+  - `types` (optional list of transaction types to include)
 
 Example:
 
@@ -188,6 +193,11 @@ page_size_options:
   - 5
   - 10
   - 25
+types:
+  - deposit
+  - withdraw
+  - adjustment
+  - interest_payout
 ```
 
 ### Resource Loading Behavior
