@@ -28,7 +28,7 @@ It provides multi-account balances, configurable APR compounding logic, transact
   - Service action `family_treasury.get_transactions` (response-capable, filter + pagination)
 - Persistent storage with monthly ledger partitions and snapshots
 
-## Roadma[]
+## Roadmap
 
 - [ ] Savings buckets/sub-accounts runtime behavior
 - [ ] Account-to-account transfers
