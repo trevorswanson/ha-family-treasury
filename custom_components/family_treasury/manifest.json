@@ -4,12 +4,12 @@
   "codeowners": [
     "@trevorswanson"
   ],
+  "config_flow": true,
   "dependencies": [
     "frontend",
     "http",
     "lovelace"
   ],
-  "config_flow": true,
   "documentation": "https://github.com/trevorswanson/ha-family-treasury",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/trevorswanson/ha-family-treasury/issues",
