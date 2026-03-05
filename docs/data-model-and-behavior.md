@@ -44,8 +44,10 @@ Loan sensor interpretation:
 - `*_loan_original_principal` is the principal recorded at loan creation
   (`original_loan_principal_minor`). Legacy loans created before this field was
   added may show a fallback derived from current principal.
-- `*_loan_total_balance` is `*_loan_principal + *_loan_accrued_interest`, which
-  acts as a payoff estimate between payout runs.
+- `*_loan_total_accrued_interest` is lifetime accrued interest recorded for the
+  loan (`total_accrued_interest_micro_minor`), independent of repayments.
+- `*_loan_total_balance` is `*_loan_principal + *_pending_interest`, which acts
+  as a payoff estimate between payout runs.
 - `*_loan_payoff_progress` is payoff progress percentage:
   `max(0, min(100, (original - total_owed) / original * 100))`.
 

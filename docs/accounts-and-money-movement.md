@@ -90,10 +90,10 @@ Loan accounts are first-class accounts with debt semantics:
   - `*_loan_original_principal` is the original principal captured at loan
     creation. For older loans created before this field existed, a fallback
     value derived from current principal may be shown.
-  - `*_loan_accrued_interest` is the same pending amount as
-    `*_pending_interest`, but loan-labeled for dashboards.
+  - `*_loan_total_accrued_interest` is the lifetime total interest accrued for
+    the loan, regardless of repayment progress.
   - `*_loan_total_balance` is a payoff-style total:
-    `*_loan_principal + *_loan_accrued_interest`.
+    `*_loan_principal + *_pending_interest`.
   - `*_loan_payoff_progress` is payoff progress percentage relative to
     `*_loan_original_principal`, computed from current total owed
     (`*_loan_total_balance`).

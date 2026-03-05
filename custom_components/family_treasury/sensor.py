@@ -65,7 +65,7 @@ async def async_setup_entry(
                     )
                 )
                 new_entities.append(
-                    FamilyTreasuryLoanAccruedInterestSensor(
+                    FamilyTreasuryLoanTotalAccruedInterestSensor(
                         coordinator, entry, account_id
                     )
                 )
@@ -229,8 +229,8 @@ class FamilyTreasuryLoanPrincipalSensor(FamilyTreasuryBaseSensor):
         return state["loan_principal_major"]
 
 
-class FamilyTreasuryLoanAccruedInterestSensor(FamilyTreasuryBaseSensor):
-    """Accrued (pending) interest for a loan."""
+class FamilyTreasuryLoanTotalAccruedInterestSensor(FamilyTreasuryBaseSensor):
+    """Lifetime total accrued interest for a loan."""
 
     def __init__(
         self,
@@ -239,21 +239,23 @@ class FamilyTreasuryLoanAccruedInterestSensor(FamilyTreasuryBaseSensor):
         account_id: str,
     ) -> None:
         super().__init__(coordinator, entry, account_id)
-        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_accrued_interest"
+        self._attr_unique_id = (
+            f"{entry.entry_id}_{account_id}_loan_total_accrued_interest"
+        )
 
     @property
     def name(self) -> str:
         account = self.coordinator.account(self._account_id)
         if account is None:
-            return f"{self._account_id} Loan Accrued Interest"
-        return f"{account.display_name} Loan Accrued Interest"
+            return f"{self._account_id} Loan Total Accrued Interest"
+        return f"{account.display_name} Loan Total Accrued Interest"
 
     @property
     def native_value(self) -> Decimal | None:
         state = self._state_data()
         if state is None:
             return None
-        return state["loan_accrued_interest_major"]
+        return state["loan_total_accrued_interest_major"]
 
 
 class FamilyTreasuryLoanOriginalPrincipalSensor(FamilyTreasuryBaseSensor):

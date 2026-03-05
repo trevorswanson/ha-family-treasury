@@ -74,7 +74,7 @@ data:
   display_name: Emma Loan #1
   account_type: loan
   parent_account_id: emma
-  loan_principal: 20.00
+  initial_balance: 20.00
 ```
 
 - Optional: repay loan balance via transfer:
@@ -92,7 +92,7 @@ data:
   - `sensor.emma_loan_1_balance`
   - `sensor.emma_loan_1_loan_principal`
   - `sensor.emma_loan_1_loan_original_principal`
-  - `sensor.emma_loan_1_loan_accrued_interest`
+  - `sensor.emma_loan_1_loan_total_accrued_interest`
   - `sensor.emma_loan_1_loan_total_balance`
   - `sensor.emma_loan_1_loan_payoff_progress`
 

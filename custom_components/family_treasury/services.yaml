@@ -36,20 +36,11 @@ create_account:
         text:
     initial_balance:
       name: Initial Balance
-      description: Optional initial balance for non-loan accounts.
+      description: Initial balance. For loans this is the principal to disburse.
       example: 25.00
       required: false
       selector:
         number:
-          mode: box
-    loan_principal:
-      name: Loan Principal
-      description: Required principal amount when account_type is loan.
-      example: 20.00
-      required: false
-      selector:
-        number:
-          min: 0
           mode: box
     apr_percent:
       name: APR Percent

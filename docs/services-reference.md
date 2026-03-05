@@ -20,8 +20,7 @@ Runtime schemas/validation are implemented in:
 | `display_name` | Yes | Friendly name shown in UI. | `"Emma"` |
 | `account_type` | No | Account type (`primary`, `bucket`, `loan`). | `"loan"` |
 | `parent_account_id` | No | Parent primary account slug. | `"emma"` |
-| `initial_balance` | No | Starting balance for non-loan accounts. | `10.00` |
-| `loan_principal` | No | Required when `account_type` is `loan`. | `20.00` |
+| `initial_balance` | No | Opening balance (or loan principal). | `10.00` |
 | `apr_percent` | No | Account-specific APR override. | `3.5` |
 | `interest_calc_frequency` | No | Accrual interval. | `"daily"` |
 | `interest_payout_frequency` | No | Payout interval. | `"monthly"` |
@@ -52,10 +51,11 @@ data:
 
 **Loan Rules (MVP):**
 
-- `account_type: loan` requires `parent_account_id` and `loan_principal`.
-- Loan accounts do not allow `initial_balance`.
+- `account_type: loan` requires `parent_account_id` and `initial_balance`.
 - Parent account must exist and be a primary account.
-- `loan_principal` becomes `original_loan_principal` for payoff-progress tracking.
+- Loan `initial_balance` is disbursed to the parent primary account.
+- Loan `initial_balance` is captured as `original_loan_principal` for
+  payoff-progress tracking.
 
 ## `family_treasury.update_account`
 

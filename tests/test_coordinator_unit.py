@@ -26,7 +26,6 @@ try:
         CONF_INTEREST_CALC_FREQUENCY,
         CONF_INTEREST_PAYOUT_FREQUENCY,
         CONF_LIMIT,
-        CONF_LOAN_PRINCIPAL,
         CONF_LOCALE,
         CONF_OFFSET,
         CONF_PARENT_ACCOUNT_ID,
@@ -423,7 +422,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 CONF_DISPLAY_NAME: "Emma Loan #1",
                 CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
                 CONF_PARENT_ACCOUNT_ID: "emma",
-                CONF_LOAN_PRINCIPAL: "20.00",
+                CONF_INITIAL_BALANCE: "20.00",
             }
         )
 
@@ -445,6 +444,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(state["loan_total_balance_major"]), "20")
         self.assertEqual(str(state["loan_original_principal_major"]), "20")
         self.assertEqual(str(state["loan_payoff_progress_percent"]), "0")
+        self.assertEqual(str(state["loan_total_accrued_interest_major"]), "0")
 
     async def test_create_loan_account_validates_required_fields(self) -> None:
         coordinator = _build_coordinator()
@@ -462,7 +462,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                     CONF_ACCOUNT_ID: "loan_missing_parent",
                     CONF_DISPLAY_NAME: "Missing Parent",
                     CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
-                    CONF_LOAN_PRINCIPAL: "10.00",
+                    CONF_INITIAL_BALANCE: "10.00",
                 }
             )
 
@@ -479,12 +479,12 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await coordinator.async_create_account(
                 {
-                    CONF_ACCOUNT_ID: "loan_with_initial_balance",
-                    CONF_DISPLAY_NAME: "Invalid Loan",
+                    CONF_ACCOUNT_ID: "loan_with_legacy_principal_field",
+                    CONF_DISPLAY_NAME: "Legacy Loan Payload",
                     CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
                     CONF_PARENT_ACCOUNT_ID: "emma",
-                    CONF_LOAN_PRINCIPAL: "10.00",
                     CONF_INITIAL_BALANCE: "1.00",
+                    "loan_principal": "10.00",
                 }
             )
 
@@ -495,7 +495,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                     CONF_DISPLAY_NAME: "Unknown Parent",
                     CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
                     CONF_PARENT_ACCOUNT_ID: "missing",
-                    CONF_LOAN_PRINCIPAL: "10.00",
+                    CONF_INITIAL_BALANCE: "10.00",
                 }
             )
 
@@ -677,6 +677,7 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(changed)
         self.assertLess(loan.balance_minor, -10_000)
+        self.assertGreater(loan.total_accrued_interest_micro_minor, 0)
         payout_call = coordinator._append_transaction.await_args_list[1]
         self.assertEqual(payout_call.kwargs["tx_type"], TX_INTEREST_PAYOUT)
         self.assertLess(payout_call.kwargs["amount_minor"], 0)

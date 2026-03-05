@@ -42,7 +42,6 @@ from .const import (
     CONF_INTEREST_CALC_FREQUENCY,
     CONF_INTEREST_PAYOUT_FREQUENCY,
     CONF_LIMIT,
-    CONF_LOAN_PRINCIPAL,
     CONF_LOCALE,
     CONF_OFFSET,
     CONF_PARENT_ACCOUNT_ID,
@@ -151,6 +150,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         loan_total_balance_major = None
         loan_original_principal_major = None
         loan_payoff_progress_percent = None
+        loan_total_accrued_interest_major = None
         if is_loan:
             loan_principal_major = minor_to_major_decimal(
                 abs(account.balance_minor),
@@ -173,6 +173,10 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 ) / loan_original_principal_major
                 progress_fraction = max(Decimal("0"), min(Decimal("1"), progress_fraction))
                 loan_payoff_progress_percent = progress_fraction * Decimal("100")
+            loan_total_accrued_interest_major = pending_micro_to_major_decimal(
+                account.total_accrued_interest_micro_minor,
+                account.currency_code,
+            )
 
         return {
             ATTR_ACCOUNT_ID: account.account_id,
@@ -197,10 +201,12 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             "balance_major": balance_major,
             "pending_interest_major": pending_interest_major,
             "loan_principal_major": loan_principal_major if is_loan else None,
-            "loan_accrued_interest_major": pending_interest_major if is_loan else None,
             "loan_total_balance_major": loan_total_balance_major if is_loan else None,
             "loan_original_principal_major": (
                 loan_original_principal_major if is_loan else None
+            ),
+            "loan_total_accrued_interest_major": (
+                loan_total_accrued_interest_major if is_loan else None
             ),
             "loan_payoff_progress_percent": (
                 loan_payoff_progress_percent if is_loan else None
@@ -367,10 +373,10 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 raise ValueError(f"Unknown parent account: {parent_account_id}")
             if parent_account.account_type != ACCOUNT_TYPE_PRIMARY:
                 raise ValueError("Loan parent must be a primary account")
-            if CONF_INITIAL_BALANCE in payload:
-                raise ValueError("Loan accounts do not support initial_balance")
-            if CONF_LOAN_PRINCIPAL not in payload:
-                raise ValueError("Loan accounts require loan_principal")
+            if CONF_INITIAL_BALANCE not in payload:
+                raise ValueError("Loan accounts require initial_balance as principal")
+            if "loan_principal" in payload:
+                raise ValueError("loan_principal is not supported; use initial_balance")
 
             defaults["currency_code"] = parent_account.currency_code
             if (
@@ -380,23 +386,23 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 raise ValueError(
                     "Loan currency must match parent account currency"
                 )
-        elif CONF_LOAN_PRINCIPAL in payload:
-            raise ValueError("loan_principal is only valid for loan accounts")
+        elif "loan_principal" in payload:
+            raise ValueError("loan_principal is not supported; use initial_balance")
 
         initial_balance_minor = 0
-        if CONF_INITIAL_BALANCE in payload:
+        loan_principal_minor = 0
+        if account_type == ACCOUNT_TYPE_LOAN:
+            loan_principal_minor = parse_major_to_minor(
+                payload[CONF_INITIAL_BALANCE],
+                defaults["currency_code"],
+            )
+            if loan_principal_minor <= 0:
+                raise ValueError("Loan principal must be greater than zero")
+        elif CONF_INITIAL_BALANCE in payload:
             initial_balance_minor = parse_major_to_minor(
                 payload[CONF_INITIAL_BALANCE],
                 defaults["currency_code"],
             )
-        loan_principal_minor = 0
-        if CONF_LOAN_PRINCIPAL in payload:
-            loan_principal_minor = parse_major_to_minor(
-                payload[CONF_LOAN_PRINCIPAL],
-                defaults["currency_code"],
-            )
-            if loan_principal_minor <= 0:
-                raise ValueError("loan_principal must be greater than zero")
 
         now_iso = utcnow_iso()
         account = AccountRecord(
@@ -738,6 +744,8 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 )
                 if accrued_micro > 0:
                     account.pending_interest_micro_minor += accrued_micro
+                    if self._is_loan_account(account):
+                        account.total_accrued_interest_micro_minor += accrued_micro
                     await self._append_transaction(
                         account,
                         tx_type=TX_INTEREST_ACCRUAL,

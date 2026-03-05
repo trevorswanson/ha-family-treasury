@@ -14,10 +14,10 @@ try:
     from custom_components.family_treasury.models import AccountRecord
     from custom_components.family_treasury.sensor import (
         FamilyTreasuryBalanceSensor,
-        FamilyTreasuryLoanAccruedInterestSensor,
         FamilyTreasuryLoanOriginalPrincipalSensor,
         FamilyTreasuryLoanPayoffProgressSensor,
         FamilyTreasuryLoanPrincipalSensor,
+        FamilyTreasuryLoanTotalAccruedInterestSensor,
         FamilyTreasuryLoanTotalBalanceSensor,
         FamilyTreasuryPendingInterestSensor,
         async_setup_entry,
@@ -228,7 +228,7 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
             "custom_components.family_treasury.sensor.FamilyTreasuryLoanOriginalPrincipalSensor",
             side_effect=lambda _c, _e, account_id: f"original:{account_id}",
         ), patch(
-            "custom_components.family_treasury.sensor.FamilyTreasuryLoanAccruedInterestSensor",
+            "custom_components.family_treasury.sensor.FamilyTreasuryLoanTotalAccruedInterestSensor",
             side_effect=lambda _c, _e, account_id: f"accrued:{account_id}",
         ), patch(
             "custom_components.family_treasury.sensor.FamilyTreasuryLoanTotalBalanceSensor",
@@ -279,7 +279,7 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
             "pending_interest_major": Decimal("0.05"),
             "loan_principal_major": Decimal("20.00"),
             "loan_original_principal_major": Decimal("30.00"),
-            "loan_accrued_interest_major": Decimal("0.05"),
+            "loan_total_accrued_interest_major": Decimal("4.25"),
             "loan_total_balance_major": Decimal("20.05"),
             "loan_payoff_progress_percent": Decimal("33.17"),
         }
@@ -296,11 +296,11 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
         original._entry = SimpleNamespace(entry_id="entry-1")
         self.assertEqual(original.native_value, Decimal("30.00"))
 
-        accrued = object.__new__(FamilyTreasuryLoanAccruedInterestSensor)
+        accrued = object.__new__(FamilyTreasuryLoanTotalAccruedInterestSensor)
         accrued.coordinator = coordinator
         accrued._account_id = "emma_loan_1"
         accrued._entry = SimpleNamespace(entry_id="entry-1")
-        self.assertEqual(accrued.native_value, Decimal("0.05"))
+        self.assertEqual(accrued.native_value, Decimal("4.25"))
 
         total = object.__new__(FamilyTreasuryLoanTotalBalanceSensor)
         total.coordinator = coordinator

@@ -18,7 +18,6 @@ try:
         CONF_AMOUNT,
         CONF_DESTINATION_ACCOUNT_ID,
         CONF_DESCRIPTION,
-        CONF_LOAN_PRINCIPAL,
         CONF_PARENT_ACCOUNT_ID,
         CONF_SOURCE_ACCOUNT_ID,
         CONF_TYPE,
@@ -213,11 +212,22 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
                 "display_name": "Emma Loan #1",
                 CONF_ACCOUNT_TYPE: "loan",
                 CONF_PARENT_ACCOUNT_ID: "emma",
-                CONF_LOAN_PRINCIPAL: "20.00",
+                "initial_balance": "20.00",
             }
         )
         self.assertEqual(validated[CONF_ACCOUNT_TYPE], "loan")
         self.assertEqual(validated[CONF_PARENT_ACCOUNT_ID], "emma")
+
+        with self.assertRaises(vol.Invalid):
+            schema(
+                {
+                    CONF_ACCOUNT_ID: "emma_loan_legacy",
+                    "display_name": "Legacy Loan",
+                    CONF_ACCOUNT_TYPE: "loan",
+                    CONF_PARENT_ACCOUNT_ID: "emma",
+                    "loan_principal": "20.00",
+                }
+            )
 
     async def test_value_error_is_wrapped_as_homeassistant_error(self) -> None:
         hass, coordinator, registry = self._build_hass()
