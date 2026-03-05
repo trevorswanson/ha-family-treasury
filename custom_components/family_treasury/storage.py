@@ -97,6 +97,18 @@ class FamilyTreasuryStorage:
         }
         await self.async_save_metadata()
 
+    async def async_delete_snapshots_for_accounts(self, account_ids: set[str]) -> None:
+        """Delete snapshots for account IDs."""
+
+        changed = False
+        snapshots = self._snapshots["snapshots"]
+        for account_id in account_ids:
+            if account_id in snapshots:
+                snapshots.pop(account_id, None)
+                changed = True
+        if changed:
+            await self.async_save_snapshots()
+
     async def async_reserve_tx_id(self) -> int:
         """Reserve and persist the next global transaction ID."""
 
@@ -170,6 +182,22 @@ class FamilyTreasuryStorage:
             "offset": capped_offset,
             "next_offset": next_offset if next_offset < total else None,
         }
+
+    async def async_purge_transactions_for_accounts(self, account_ids: set[str]) -> None:
+        """Delete ledger rows for account IDs across all partitions."""
+
+        for month_key in list(self._metadata.get("ledger_partitions", [])):
+            partition = await self._async_load_partition(month_key)
+            existing_rows = partition["transactions"]
+            filtered_rows = [
+                row for row in existing_rows if row.get("account_id") not in account_ids
+            ]
+            if len(filtered_rows) == len(existing_rows):
+                continue
+
+            await self._async_partition_store(month_key).async_save(
+                {"transactions": filtered_rows}
+            )
 
     async def async_create_monthly_snapshot(
         self,

@@ -13,8 +13,10 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     ACCOUNT_TYPES,
+    BALANCE_MODES,
     CONF_ACCOUNT_ID,
     CONF_ACCOUNT_TYPE,
+    CONF_BALANCE_MODE,
     CONF_ACTIVE,
     CONF_AMOUNT,
     CONF_APR_PERCENT,
@@ -39,6 +41,7 @@ from .const import (
     MAX_TRANSACTION_QUERY_LIMIT,
     SERVICE_ADJUST_BALANCE,
     SERVICE_CREATE_ACCOUNT,
+    SERVICE_DELETE_ACCOUNT,
     SERVICE_DEPOSIT,
     SERVICE_GET_TRANSACTIONS,
     SERVICE_TRANSFER,
@@ -78,6 +81,13 @@ UPDATE_ACCOUNT_SCHEMA = vol.Schema(
         vol.Optional(CONF_INTEREST_PAYOUT_FREQUENCY): vol.In(sorted(FREQUENCIES)),
         vol.Optional(CONF_CURRENCY_CODE): cv.string,
         vol.Optional(CONF_LOCALE): cv.string,
+    }
+)
+
+DELETE_ACCOUNT_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ACCOUNT_ID): cv.slug,
+        vol.Optional(CONF_BALANCE_MODE): vol.In(sorted(BALANCE_MODES)),
     }
 )
 
@@ -133,6 +143,16 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
 
         try:
             await coordinator.async_update_account(payload)
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def handle_delete_account(call: ServiceCall) -> None:
+        coordinator = _default_coordinator(hass)
+        try:
+            await coordinator.async_delete_account(
+                account_id=call.data[CONF_ACCOUNT_ID],
+                balance_mode=call.data.get(CONF_BALANCE_MODE),
+            )
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
 
@@ -204,6 +224,12 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_DELETE_ACCOUNT,
+        handle_delete_account,
+        schema=DELETE_ACCOUNT_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_DEPOSIT,
         handle_deposit,
         schema=BALANCE_CHANGE_SCHEMA,
@@ -238,6 +264,7 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
         for service in (
             SERVICE_CREATE_ACCOUNT,
             SERVICE_UPDATE_ACCOUNT,
+            SERVICE_DELETE_ACCOUNT,
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,

@@ -12,6 +12,7 @@ from uuid import uuid4
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -20,6 +21,9 @@ from .const import (
     ACCOUNT_TYPE_LOAN,
     ACCOUNT_TYPE_PRIMARY,
     ACCOUNT_TYPES,
+    BALANCE_MODE_DISBURSE_TO_PARENT,
+    BALANCE_MODE_ERASE,
+    BALANCE_MODES,
     ATTR_ACCOUNT_ID,
     ATTR_ACCOUNT_TYPE,
     ATTR_CURRENCY_CODE,
@@ -32,6 +36,7 @@ from .const import (
     ATTR_PARENT_ACCOUNT_ID,
     ATTR_RECENT_TRANSACTIONS,
     CONF_ACCOUNT_TYPE,
+    CONF_BALANCE_MODE,
     CONF_APR_PERCENT,
     CONF_CURRENCY_CODE,
     CONF_DEFAULT_APR_PERCENT,
@@ -502,6 +507,78 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             await self.storage.async_replace_accounts(self._accounts)
             await self._maybe_snapshot(account)
 
+        async_dispatcher_send(self.hass, SIGNAL_ACCOUNTS_UPDATED)
+        await self._async_refresh_state()
+
+    async def async_delete_account(
+        self,
+        *,
+        account_id: str,
+        balance_mode: str | None,
+    ) -> None:
+        """Delete an account, optionally cascading to descendants."""
+
+        normalized_mode = balance_mode or BALANCE_MODE_DISBURSE_TO_PARENT
+        if normalized_mode not in BALANCE_MODES:
+            raise ValueError(
+                f"Unsupported balance_mode: {normalized_mode}. "
+                f"Expected one of: {', '.join(sorted(BALANCE_MODES))}"
+            )
+
+        account = self._require_account(account_id)
+        deleted_ids = self._collect_delete_subtree_ids(account_id)
+        deleted_set = set(deleted_ids)
+        is_cascade = len(deleted_ids) > 1
+        parent_account: AccountRecord | None = None
+        if account.parent_account_id and account.parent_account_id not in deleted_set:
+            parent_account = self._accounts.get(account.parent_account_id)
+        if normalized_mode == BALANCE_MODE_DISBURSE_TO_PARENT and parent_account is not None:
+            if any(
+                self._accounts[delete_id].currency_code != parent_account.currency_code
+                for delete_id in deleted_ids
+            ):
+                raise ValueError(
+                    "Cannot disburse deleted subtree: all deleted accounts must match "
+                    "the surviving parent currency. Use balance_mode=erase to force delete."
+                )
+
+        async with self._lock:
+            for delete_id in deleted_ids:
+                delete_account = self._accounts[delete_id]
+                await self._settle_pending_interest_for_delete(delete_account)
+
+            if normalized_mode == BALANCE_MODE_DISBURSE_TO_PARENT and parent_account is not None:
+                subtree_net_minor = sum(
+                    self._accounts[delete_id].balance_minor for delete_id in deleted_ids
+                )
+                disburse_minor = max(subtree_net_minor, 0)
+                if disburse_minor > 0:
+                    parent_account.balance_minor += disburse_minor
+                    parent_account.updated_at = utcnow_iso()
+                    await self._append_transaction(
+                        parent_account,
+                        tx_type=TX_TRANSFER_IN,
+                        amount_minor=disburse_minor,
+                        description="Deleted account balance disbursement",
+                        balance_after_minor=parent_account.balance_minor,
+                        meta={
+                            "counterparty_account_id": account_id,
+                            "deleted_account_ids": deleted_ids,
+                            "balance_mode": normalized_mode,
+                        },
+                    )
+                    await self._maybe_snapshot(parent_account)
+
+            for delete_id in deleted_ids:
+                self._accounts.pop(delete_id, None)
+                self._recent_transactions.pop(delete_id, None)
+
+            await self.storage.async_replace_accounts(self._accounts)
+            await self.storage.async_delete_snapshots_for_accounts(deleted_set)
+            if is_cascade:
+                await self.storage.async_purge_transactions_for_accounts(deleted_set)
+
+        await self._async_remove_deleted_entities(deleted_set)
         async_dispatcher_send(self.hass, SIGNAL_ACCOUNTS_UPDATED)
         await self._async_refresh_state()
 
@@ -1000,6 +1077,50 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         self._recent_transactions[transaction.account_id] = current[
             :RECENT_TRANSACTIONS_LIMIT
         ]
+
+    def _collect_delete_subtree_ids(self, account_id: str) -> list[str]:
+        queue = [account_id]
+        deleted_ids: list[str] = []
+        while queue:
+            current_id = queue.pop(0)
+            deleted_ids.append(current_id)
+            children = sorted(
+                candidate_id
+                for candidate_id, candidate in self._accounts.items()
+                if candidate.parent_account_id == current_id
+            )
+            queue.extend(children)
+        return deleted_ids
+
+    async def _settle_pending_interest_for_delete(self, account: AccountRecord) -> None:
+        payout_minor = payoutable_minor_from_pending_micro(
+            account.pending_interest_micro_minor
+        )
+        if payout_minor <= 0:
+            return
+
+        payout_delta = -payout_minor if self._is_loan_account(account) else payout_minor
+        account.balance_minor += payout_delta
+        account.pending_interest_micro_minor -= payout_minor * MICRO_MINOR_PER_MINOR
+        account.updated_at = utcnow_iso()
+        await self._append_transaction(
+            account,
+            tx_type=TX_INTEREST_PAYOUT,
+            amount_minor=payout_delta,
+            description="Interest payout (delete settlement)",
+            balance_after_minor=account.balance_minor,
+        )
+        await self._maybe_snapshot(account)
+
+    async def _async_remove_deleted_entities(self, deleted_ids: set[str]) -> None:
+        registry = er.async_get(self.hass)
+        unique_id_prefixes = {
+            f"{self.entry.entry_id}_{account_id}_" for account_id in deleted_ids
+        }
+        for entry in er.async_entries_for_config_entry(registry, self.entry.entry_id):
+            unique_id = entry.unique_id or ""
+            if any(unique_id.startswith(prefix) for prefix in unique_id_prefixes):
+                registry.async_remove(entry.entity_id)
 
     async def _async_refresh_state(self) -> None:
         await self._async_prime_formatter_cache()

@@ -85,6 +85,14 @@ CONF_TYPE = "type"
 CONF_LIMIT = "limit"
 CONF_OFFSET = "offset"
 CONF_INITIAL_BALANCE = "initial_balance"
+CONF_BALANCE_MODE = "balance_mode"
+
+BALANCE_MODE_DISBURSE_TO_PARENT = "disburse_to_parent"
+BALANCE_MODE_ERASE = "erase"
+BALANCE_MODES = {
+    BALANCE_MODE_DISBURSE_TO_PARENT,
+    BALANCE_MODE_ERASE,
+}
 
 ATTR_ACCOUNT_ID = "account_id"
 ATTR_ACCOUNT_TYPE = "account_type"
@@ -100,6 +108,7 @@ ATTR_RECENT_TRANSACTIONS = "recent_transactions"
 
 SERVICE_CREATE_ACCOUNT = "create_account"
 SERVICE_UPDATE_ACCOUNT = "update_account"
+SERVICE_DELETE_ACCOUNT = "delete_account"
 SERVICE_DEPOSIT = "deposit"
 SERVICE_WITHDRAW = "withdraw"
 SERVICE_ADJUST_BALANCE = "adjust_balance"

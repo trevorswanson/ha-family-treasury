@@ -159,6 +159,28 @@ update_account:
       selector:
         text:
 
+delete_account:
+  name: Delete Account
+  description: Delete an account. If the account has descendants, deletion cascades to all children.
+  fields:
+    account_id:
+      name: Account ID
+      description: Existing account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma_bucket
+      required: true
+      selector:
+        text:
+    balance_mode:
+      name: Balance Mode
+      description: How to handle remaining subtree balance before delete.
+      example: disburse_to_parent
+      required: false
+      selector:
+        select:
+          options:
+            - disburse_to_parent
+            - erase
+
 deposit:
   name: Deposit
   description: Deposit funds into an account.
