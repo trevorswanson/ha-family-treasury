@@ -7,13 +7,14 @@ import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 HA_AVAILABLE = True
 try:
     from custom_components.family_treasury.const import (
         ACCOUNT_TYPE_LOAN,
         ACCOUNT_TYPE_PRIMARY,
+        BALANCE_MODE_ERASE,
         CONF_ACCOUNT_ID,
         CONF_ACCOUNT_TYPE,
         CONF_APR_PERCENT,
@@ -62,6 +63,8 @@ class _StorageStub:
                 "next_offset": None,
             }
         )
+        self.async_delete_snapshots_for_accounts = AsyncMock()
+        self.async_purge_transactions_for_accounts = AsyncMock()
 
     async def _reserve_tx_id(self) -> int:
         tx_id = self._next_tx_id
@@ -624,6 +627,316 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
+    async def test_update_account_locale_persists_and_refreshes(self) -> None:
+        coordinator = _build_coordinator()
+        account = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            locale="en_US",
+        )
+        coordinator._accounts = {"emma": account}
+        coordinator._maybe_snapshot = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_update_account(
+            {
+                CONF_ACCOUNT_ID: "emma",
+                CONF_LOCALE: "is_IS",
+            }
+        )
+
+        self.assertEqual(account.locale, "is_IS")
+        coordinator.storage.async_replace_accounts.assert_awaited_once_with(
+            coordinator._accounts
+        )
+        coordinator._maybe_snapshot.assert_awaited_once_with(account)
+        coordinator._async_refresh_state.assert_awaited_once()
+
+    async def test_delete_sub_account_disburse_preserves_history_and_credits_parent(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=300,
+        )
+        coordinator._accounts = {"emma": parent, "emma_bucket": child}
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(account_id="emma_bucket", balance_mode=None)
+
+        self.assertEqual(parent.balance_minor, 1300)
+        self.assertIn("emma", coordinator._accounts)
+        self.assertNotIn("emma_bucket", coordinator._accounts)
+        coordinator.storage.async_purge_transactions_for_accounts.assert_not_awaited()
+
+    async def test_delete_sub_account_erase_does_not_credit_parent(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=300,
+        )
+        coordinator._accounts = {"emma": parent, "emma_bucket": child}
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(
+            account_id="emma_bucket",
+            balance_mode=BALANCE_MODE_ERASE,
+        )
+
+        self.assertEqual(parent.balance_minor, 1000)
+        self.assertNotIn("emma_bucket", coordinator._accounts)
+        coordinator.storage.async_purge_transactions_for_accounts.assert_not_awaited()
+
+    async def test_delete_settles_pending_interest_before_disburse(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=100,
+            pending_interest_micro_minor=1_500_000,
+        )
+        coordinator._accounts = {"emma": parent, "emma_bucket": child}
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(account_id="emma_bucket", balance_mode=None)
+
+        self.assertEqual(parent.balance_minor, 1101)
+        self.assertNotIn("emma_bucket", coordinator._accounts)
+
+    async def test_delete_loan_with_outstanding_debt_is_allowed(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-500,
+        )
+        coordinator._accounts = {"emma": parent, "emma_loan_1": loan}
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(account_id="emma_loan_1", balance_mode=None)
+
+        self.assertEqual(parent.balance_minor, 1000)
+        self.assertNotIn("emma_loan_1", coordinator._accounts)
+
+    async def test_delete_parent_cascades_and_purges_subtree_history(self) -> None:
+        coordinator = _build_coordinator()
+        root = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=200,
+        )
+        loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-50,
+        )
+        coordinator._accounts = {
+            "emma": root,
+            "emma_bucket": child,
+            "emma_loan_1": loan,
+        }
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(account_id="emma", balance_mode=None)
+
+        self.assertEqual(coordinator._accounts, {})
+        coordinator.storage.async_purge_transactions_for_accounts.assert_awaited_once_with(
+            {"emma", "emma_bucket", "emma_loan_1"}
+        )
+
+    async def test_delete_subtree_disburse_uses_net_positive_amount(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="root",
+            display_name="Root",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        subtree_root = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="root",
+            currency_code="USD",
+            balance_minor=300,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-100,
+        )
+        coordinator._accounts = {
+            "root": parent,
+            "emma": subtree_root,
+            "emma_bucket": child,
+        }
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_delete_account(account_id="emma", balance_mode=None)
+
+        self.assertEqual(parent.balance_minor, 1200)
+        self.assertNotIn("emma", coordinator._accounts)
+        self.assertNotIn("emma_bucket", coordinator._accounts)
+
+    async def test_delete_disburse_fails_when_subtree_currency_mismatch(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="root",
+            display_name="Root",
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        subtree_root = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="root",
+            currency_code="USD",
+            balance_minor=300,
+        )
+        child = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="ISK",
+            balance_minor=100,
+        )
+        coordinator._accounts = {
+            "root": parent,
+            "emma": subtree_root,
+            "emma_bucket": child,
+        }
+        coordinator._async_remove_deleted_entities = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_delete_account(account_id="emma", balance_mode=None)
+
+        self.assertIn("emma", coordinator._accounts)
+        self.assertIn("emma_bucket", coordinator._accounts)
+        coordinator.storage.async_purge_transactions_for_accounts.assert_not_awaited()
+
+    async def test_delete_account_rejects_invalid_balance_mode(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator._accounts = {
+            "emma": AccountRecord(account_id="emma", display_name="Emma")
+        }
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_delete_account(
+                account_id="emma",
+                balance_mode="invalid_mode",
+            )
+
+    async def test_remove_deleted_entities_matches_exact_account_id_segment(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
+        registry = SimpleNamespace(async_remove=MagicMock())
+        entries = [
+            SimpleNamespace(unique_id="entry-1_emma_balance", entity_id="sensor.emma"),
+            SimpleNamespace(
+                unique_id="entry-1_emma_bucket_balance",
+                entity_id="sensor.emma_bucket",
+            ),
+            SimpleNamespace(unique_id="entry-1_other_balance", entity_id="sensor.other"),
+            SimpleNamespace(unique_id=None, entity_id="sensor.none"),
+        ]
+
+        with patch(
+            "custom_components.family_treasury.coordinator.er.async_get",
+            return_value=registry,
+        ), patch(
+            "custom_components.family_treasury.coordinator.er.async_entries_for_config_entry",
+            return_value=entries,
+        ):
+            await coordinator._async_remove_deleted_entities({"emma"})
+
+        registry.async_remove.assert_called_once_with("sensor.emma")
+
+    async def test_account_id_from_entity_unique_id_parses_known_suffixes(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
+
+        self.assertEqual(
+            coordinator._account_id_from_entity_unique_id(
+                "entry-1_emma_bucket_loan_total_accrued_interest"
+            ),
+            "emma_bucket",
+        )
+        self.assertEqual(
+            coordinator._account_id_from_entity_unique_id("entry-1_emma_pending_interest"),
+            "emma",
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("entry-1_emma_unknown_suffix")
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("other-entry_emma_balance")
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("entry-1__balance")
+        )
+
     async def test_process_interest_for_account_advances_state(self) -> None:
         coordinator = _build_coordinator()
         account = AccountRecord(
@@ -702,6 +1015,22 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(transaction.tx_id, 1)
         self.assertEqual(coordinator._recent_transactions["emma"][0]["tx_id"], 1)
         coordinator.storage.async_append_transaction.assert_awaited_once()
+
+    async def test_load_recent_transactions_returns_storage_rows(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.storage.async_list_transactions = AsyncMock(
+            return_value={
+                "transactions": [{"tx_id": 7, "account_id": "emma"}],
+                "total": 1,
+                "limit": 10,
+                "offset": 0,
+                "next_offset": None,
+            }
+        )
+
+        result = await coordinator._load_recent_transactions("emma")
+
+        self.assertEqual(result, [{"tx_id": 7, "account_id": "emma"}])
 
     async def test_apply_balance_change_validation_errors(self) -> None:
         coordinator = _build_coordinator()

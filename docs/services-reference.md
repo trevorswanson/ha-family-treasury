@@ -91,6 +91,36 @@ data:
 - Enabling/disabling an account from automations.
 - Tuning APR and interest schedule settings.
 
+## `family_treasury.delete_account`
+
+**Purpose:** Delete an account. If it has descendants, deletion cascades to the
+full subtree.
+
+**Parameters:**
+
+| Parameter | Required | Description | Example |
+| - | - | - | - |
+| `account_id` | Yes | Account slug to delete. | `"emma_bucket"` |
+| `balance_mode` | No | How to handle remaining balance (`disburse_to_parent`,`erase`). Defaults to `disburse_to_parent`. | `"erase"` |
+
+**Example:**
+
+```yaml
+action: family_treasury.delete_account
+data:
+  account_id: "emma_bucket"
+  balance_mode: "disburse_to_parent"
+```
+
+**Delete Rules:**
+
+- If the target has descendants, deletion always cascades to the whole subtree.
+- Pending interest is settled before delete balance handling.
+- `balance_mode: disburse_to_parent` disburses only when a surviving parent exists.
+- Cascade deletion purges transaction and snapshot history for the deleted subtree.
+- Single-account deletion preserves existing transaction history.
+- Loan accounts can be force-deleted even with outstanding debt.
+
 ## `family_treasury.deposit`
 
 **Purpose:** Add funds to an account and record a deposit transaction.

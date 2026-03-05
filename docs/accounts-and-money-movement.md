@@ -103,3 +103,16 @@ Loan accounts are first-class accounts with debt semantics:
 
 Transfers are designed to be generic so future sub-accounts/buckets/goals can
 reuse the same movement model.
+
+## Delete Behavior
+
+Use `family_treasury.delete_account` to remove accounts:
+
+- `balance_mode: disburse_to_parent` (default) credits the surviving parent with
+  the deleted subtree net positive balance.
+- `balance_mode: erase` force-deletes without disbursement.
+- Pending interest is settled before delete balance handling.
+- If the target has child accounts, deletion always cascades to all descendants.
+- Single-account delete keeps transaction history.
+- Cascade delete purges transactions and snapshots for all deleted subtree
+  accounts.

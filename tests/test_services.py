@@ -15,6 +15,7 @@ try:
     from custom_components.family_treasury.const import (
         CONF_ACCOUNT_ID,
         CONF_ACCOUNT_TYPE,
+        CONF_BALANCE_MODE,
         CONF_AMOUNT,
         CONF_DESTINATION_ACCOUNT_ID,
         CONF_DESCRIPTION,
@@ -25,6 +26,7 @@ try:
         DOMAIN,
         SERVICE_ADJUST_BALANCE,
         SERVICE_CREATE_ACCOUNT,
+        SERVICE_DELETE_ACCOUNT,
         SERVICE_DEPOSIT,
         SERVICE_GET_TRANSACTIONS,
         SERVICE_TRANSFER,
@@ -65,6 +67,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             async_create_account=AsyncMock(),
             async_update_account=AsyncMock(),
+            async_delete_account=AsyncMock(),
             async_deposit=AsyncMock(),
             async_withdraw=AsyncMock(),
             async_adjust_balance=AsyncMock(),
@@ -90,6 +93,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
         for service in (
             SERVICE_CREATE_ACCOUNT,
             SERVICE_UPDATE_ACCOUNT,
+            SERVICE_DELETE_ACCOUNT,
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,
@@ -103,6 +107,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
         for service in (
             SERVICE_CREATE_ACCOUNT,
             SERVICE_UPDATE_ACCOUNT,
+            SERVICE_DELETE_ACCOUNT,
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,
@@ -161,6 +166,16 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(data={"account_id": "emma", "display_name": "Emma"})
         )
         coordinator.async_create_account.assert_awaited_once()
+
+        await registry._handlers[(DOMAIN, SERVICE_DELETE_ACCOUNT)]["handler"](
+            SimpleNamespace(
+                data={CONF_ACCOUNT_ID: "emma_bucket", CONF_BALANCE_MODE: "erase"}
+            )
+        )
+        coordinator.async_delete_account.assert_awaited_once_with(
+            account_id="emma_bucket",
+            balance_mode="erase",
+        )
 
     async def test_update_account_requires_fields(self) -> None:
         hass, _coordinator, registry = self._build_hass()
@@ -229,6 +244,17 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
+    async def test_delete_account_schema_accepts_balance_mode(self) -> None:
+        hass, _coordinator, registry = self._build_hass()
+        async_register_services(hass)
+
+        schema = registry._handlers[(DOMAIN, SERVICE_DELETE_ACCOUNT)]["schema"]
+        validated = schema({CONF_ACCOUNT_ID: "emma_bucket", CONF_BALANCE_MODE: "erase"})
+        self.assertEqual(validated[CONF_BALANCE_MODE], "erase")
+
+        with self.assertRaises(vol.Invalid):
+            schema({CONF_ACCOUNT_ID: "emma_bucket", CONF_BALANCE_MODE: "invalid"})
+
     async def test_value_error_is_wrapped_as_homeassistant_error(self) -> None:
         hass, coordinator, registry = self._build_hass()
         coordinator.async_deposit = AsyncMock(side_effect=ValueError("bad amount"))
@@ -237,6 +263,16 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HomeAssistantError):
             await registry._handlers[(DOMAIN, SERVICE_DEPOSIT)]["handler"](
                 SimpleNamespace(data={CONF_ACCOUNT_ID: "emma", CONF_AMOUNT: "1.00"})
+            )
+
+    async def test_delete_account_value_error_is_wrapped(self) -> None:
+        hass, coordinator, registry = self._build_hass()
+        coordinator.async_delete_account = AsyncMock(side_effect=ValueError("bad delete"))
+        async_register_services(hass)
+
+        with self.assertRaises(HomeAssistantError):
+            await registry._handlers[(DOMAIN, SERVICE_DELETE_ACCOUNT)]["handler"](
+                SimpleNamespace(data={CONF_ACCOUNT_ID: "emma_bucket"})
             )
 
     async def test_default_coordinator_missing_runtime_raises(self) -> None:
