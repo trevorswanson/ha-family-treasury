@@ -14,7 +14,7 @@ changes.
 - Tested Home Assistant version: `2026.3.0`
 - HACS minimum Home Assistant version: `2026.3.0` (`hacs.json`)
 - Domain: `family_treasury`
-- Integration version: `0.2.0` (`custom_components/family_treasury/manifest.json`)
+- Integration version: `0.3.0` (`custom_components/family_treasury/manifest.json`)
 
 ## Fast Start
 
