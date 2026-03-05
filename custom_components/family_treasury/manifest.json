@@ -5,8 +5,8 @@
     "@trevorswanson"
   ],
   "dependencies": [
-    "http",
     "frontend",
+    "http",
     "lovelace"
   ],
   "config_flow": true,
