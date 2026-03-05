@@ -94,6 +94,15 @@ from .storage import FamilyTreasuryStorage
 
 _LOGGER = logging.getLogger(__name__)
 UTC = timezone.utc
+ENTITY_UNIQUE_ID_SUFFIXES = (
+    "loan_total_accrued_interest",
+    "loan_original_principal",
+    "loan_payoff_progress",
+    "loan_total_balance",
+    "pending_interest",
+    "loan_principal",
+    "balance",
+)
 
 
 class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
@@ -1114,13 +1123,29 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
     async def _async_remove_deleted_entities(self, deleted_ids: set[str]) -> None:
         registry = er.async_get(self.hass)
-        unique_id_prefixes = {
-            f"{self.entry.entry_id}_{account_id}_" for account_id in deleted_ids
-        }
         for entry in er.async_entries_for_config_entry(registry, self.entry.entry_id):
-            unique_id = entry.unique_id or ""
-            if any(unique_id.startswith(prefix) for prefix in unique_id_prefixes):
+            account_id = self._account_id_from_entity_unique_id(entry.unique_id)
+            if account_id in deleted_ids:
                 registry.async_remove(entry.entity_id)
+
+    def _account_id_from_entity_unique_id(self, unique_id: str | None) -> str | None:
+        """Extract account_id from a Family Treasury sensor unique ID."""
+
+        if not unique_id:
+            return None
+
+        prefix = f"{self.entry.entry_id}_"
+        if not unique_id.startswith(prefix):
+            return None
+
+        remainder = unique_id[len(prefix) :]
+        for suffix in ENTITY_UNIQUE_ID_SUFFIXES:
+            suffix_token = f"_{suffix}"
+            if remainder.endswith(suffix_token):
+                account_id = remainder[: -len(suffix_token)]
+                return account_id or None
+
+        return None
 
     async def _async_refresh_state(self) -> None:
         await self._async_prime_formatter_cache()

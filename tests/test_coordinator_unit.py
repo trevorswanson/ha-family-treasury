@@ -627,6 +627,32 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
+    async def test_update_account_locale_persists_and_refreshes(self) -> None:
+        coordinator = _build_coordinator()
+        account = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            currency_code="USD",
+            locale="en_US",
+        )
+        coordinator._accounts = {"emma": account}
+        coordinator._maybe_snapshot = AsyncMock()
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_update_account(
+            {
+                CONF_ACCOUNT_ID: "emma",
+                CONF_LOCALE: "is_IS",
+            }
+        )
+
+        self.assertEqual(account.locale, "is_IS")
+        coordinator.storage.async_replace_accounts.assert_awaited_once_with(
+            coordinator._accounts
+        )
+        coordinator._maybe_snapshot.assert_awaited_once_with(account)
+        coordinator._async_refresh_state.assert_awaited_once()
+
     async def test_delete_sub_account_disburse_preserves_history_and_credits_parent(self) -> None:
         coordinator = _build_coordinator()
         parent = AccountRecord(
@@ -862,13 +888,15 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 balance_mode="invalid_mode",
             )
 
-    async def test_remove_deleted_entities_removes_matching_unique_id_prefixes(self) -> None:
+    async def test_remove_deleted_entities_matches_exact_account_id_segment(self) -> None:
         coordinator = _build_coordinator()
         coordinator.entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
         registry = SimpleNamespace(async_remove=MagicMock())
         entries = [
+            SimpleNamespace(unique_id="entry-1_emma_balance", entity_id="sensor.emma"),
             SimpleNamespace(
-                unique_id="entry-1_emma_bucket_balance", entity_id="sensor.emma_bucket"
+                unique_id="entry-1_emma_bucket_balance",
+                entity_id="sensor.emma_bucket",
             ),
             SimpleNamespace(unique_id="entry-1_other_balance", entity_id="sensor.other"),
             SimpleNamespace(unique_id=None, entity_id="sensor.none"),
@@ -881,9 +909,33 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
             "custom_components.family_treasury.coordinator.er.async_entries_for_config_entry",
             return_value=entries,
         ):
-            await coordinator._async_remove_deleted_entities({"emma_bucket"})
+            await coordinator._async_remove_deleted_entities({"emma"})
 
-        registry.async_remove.assert_called_once_with("sensor.emma_bucket")
+        registry.async_remove.assert_called_once_with("sensor.emma")
+
+    async def test_account_id_from_entity_unique_id_parses_known_suffixes(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
+
+        self.assertEqual(
+            coordinator._account_id_from_entity_unique_id(
+                "entry-1_emma_bucket_loan_total_accrued_interest"
+            ),
+            "emma_bucket",
+        )
+        self.assertEqual(
+            coordinator._account_id_from_entity_unique_id("entry-1_emma_pending_interest"),
+            "emma",
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("entry-1_emma_unknown_suffix")
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("other-entry_emma_balance")
+        )
+        self.assertIsNone(
+            coordinator._account_id_from_entity_unique_id("entry-1__balance")
+        )
 
     async def test_process_interest_for_account_advances_state(self) -> None:
         coordinator = _build_coordinator()
@@ -963,6 +1015,22 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(transaction.tx_id, 1)
         self.assertEqual(coordinator._recent_transactions["emma"][0]["tx_id"], 1)
         coordinator.storage.async_append_transaction.assert_awaited_once()
+
+    async def test_load_recent_transactions_returns_storage_rows(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.storage.async_list_transactions = AsyncMock(
+            return_value={
+                "transactions": [{"tx_id": 7, "account_id": "emma"}],
+                "total": 1,
+                "limit": 10,
+                "offset": 0,
+                "next_offset": None,
+            }
+        )
+
+        result = await coordinator._load_recent_transactions("emma")
+
+        self.assertEqual(result, [{"tx_id": 7, "account_id": "emma"}])
 
     async def test_apply_balance_change_validation_errors(self) -> None:
         coordinator = _build_coordinator()
