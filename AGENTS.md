@@ -132,6 +132,8 @@ Coverage policy:
 
 - Total coverage floor: `60%` (`COV_FAIL_UNDER`, default in `tox.ini`)
 - Changed lines in integration code: `100%` in PR CI
+- If total coverage exceeds the current floor by a significant amount, suggest
+raising the floor to ensure continued quality.
 
 ## Contribution Expectations
 
