@@ -10,9 +10,9 @@ changes.
 
 ## Current Baseline
 
-- Python: `3.13`
-- Tested Home Assistant version: `2026.2.3`
-- HACS minimum Home Assistant version: `2026.2.3` (`hacs.json`)
+- Python: `3.14`
+- Tested Home Assistant version: `2026.3.0`
+- HACS minimum Home Assistant version: `2026.3.0` (`hacs.json`)
 - Domain: `family_treasury`
 - Integration version: `0.1.0` (`custom_components/family_treasury/manifest.json`)
 
@@ -21,8 +21,8 @@ changes.
 1. Install test dependencies:
 
    ```bash
-   python3.13 -m pip install -r requirements_test.txt
-   python3.13 -m pip install tox
+   python3.14 -m pip install -r requirements_test.txt
+   python3.14 -m pip install tox
    ```
 
 2. Run coverage-gated tests:

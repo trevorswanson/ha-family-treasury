@@ -10,11 +10,11 @@ Open the repo in the dev container (`.devcontainer/devcontainer.json`).
 
 ### Option 2: Local Python
 
-Use Python `3.13`.
+Use Python `3.14`.
 
 ```bash
-python3.13 -m pip install -r requirements_test.txt
-python3.13 -m pip install tox
+python3.14 -m pip install -r requirements_test.txt
+python3.14 -m pip install tox
 ```
 
 ## Local Validation

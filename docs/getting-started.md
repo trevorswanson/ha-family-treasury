@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Home Assistant version: `2026.2.3` or newer (current baseline)
+- Home Assistant version: `2026.3.0` or newer (current baseline)
 
 ## Installation
 

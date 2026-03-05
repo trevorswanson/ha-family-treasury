@@ -1,4 +1,4 @@
-homeassistant==2026.2.3
+homeassistant==2026.3.0
 pytest>=9,<10
 pytest-asyncio>=1,<2
 pytest-cov>=7,<8
