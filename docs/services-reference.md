@@ -93,14 +93,16 @@ data:
 
 ## `family_treasury.delete_account`
 
-**Purpose:** Delete an account. If it has descendants, deletion cascades to the full subtree.
+**Purpose:** Delete an account. If it has descendants, deletion cascades to the
+full subtree.
 
 **Parameters:**
 
 | Parameter | Required | Description | Example |
 | - | - | - | - |
 | `account_id` | Yes | Account slug to delete. | `"emma_bucket"` |
-| `balance_mode` | No | How to handle remaining balance (`disburse_to_parent`, `erase`). Defaults to `disburse_to_parent`. | `"erase"` |
+| `balance_mode` | No | How to handle remaining balance (`disburse_to_parent`,
+`erase`). Defaults to `disburse_to_parent`. | `"erase"` |
 
 **Example:**
 
