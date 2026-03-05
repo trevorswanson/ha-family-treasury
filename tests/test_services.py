@@ -265,6 +265,16 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(data={CONF_ACCOUNT_ID: "emma", CONF_AMOUNT: "1.00"})
             )
 
+    async def test_delete_account_value_error_is_wrapped(self) -> None:
+        hass, coordinator, registry = self._build_hass()
+        coordinator.async_delete_account = AsyncMock(side_effect=ValueError("bad delete"))
+        async_register_services(hass)
+
+        with self.assertRaises(HomeAssistantError):
+            await registry._handlers[(DOMAIN, SERVICE_DELETE_ACCOUNT)]["handler"](
+                SimpleNamespace(data={CONF_ACCOUNT_ID: "emma_bucket"})
+            )
+
     async def test_default_coordinator_missing_runtime_raises(self) -> None:
         hass = SimpleNamespace(data={DOMAIN: {DATA_RUNTIME: {}}})
 

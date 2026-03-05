@@ -7,7 +7,7 @@ import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 HA_AVAILABLE = True
 try:
@@ -849,6 +849,41 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn("emma", coordinator._accounts)
         self.assertIn("emma_bucket", coordinator._accounts)
         coordinator.storage.async_purge_transactions_for_accounts.assert_not_awaited()
+
+    async def test_delete_account_rejects_invalid_balance_mode(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator._accounts = {
+            "emma": AccountRecord(account_id="emma", display_name="Emma")
+        }
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_delete_account(
+                account_id="emma",
+                balance_mode="invalid_mode",
+            )
+
+    async def test_remove_deleted_entities_removes_matching_unique_id_prefixes(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator.entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
+        registry = SimpleNamespace(async_remove=MagicMock())
+        entries = [
+            SimpleNamespace(
+                unique_id="entry-1_emma_bucket_balance", entity_id="sensor.emma_bucket"
+            ),
+            SimpleNamespace(unique_id="entry-1_other_balance", entity_id="sensor.other"),
+            SimpleNamespace(unique_id=None, entity_id="sensor.none"),
+        ]
+
+        with patch(
+            "custom_components.family_treasury.coordinator.er.async_get",
+            return_value=registry,
+        ), patch(
+            "custom_components.family_treasury.coordinator.er.async_entries_for_config_entry",
+            return_value=entries,
+        ):
+            await coordinator._async_remove_deleted_entities({"emma_bucket"})
+
+        registry.async_remove.assert_called_once_with("sensor.emma_bucket")
 
     async def test_process_interest_for_account_advances_state(self) -> None:
         coordinator = _build_coordinator()
