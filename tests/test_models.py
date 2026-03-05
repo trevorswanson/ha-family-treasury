@@ -13,6 +13,7 @@ try:
         minor_to_major_decimal,
         parse_major_to_minor,
         pending_micro_to_major_decimal,
+        warm_currency_formatters,
     )
 except ModuleNotFoundError:
     HA_AVAILABLE = False
@@ -45,6 +46,9 @@ class TestModels(unittest.TestCase):
             pending_micro_to_major_decimal(1_500_000, "USD"),
             Decimal("0.015"),
         )
+
+    def test_warm_currency_formatters_is_noop_safe(self) -> None:
+        warm_currency_formatters({("USD", "en_US"), ("ISK", "is_IS")})
 
 
 if __name__ == "__main__":

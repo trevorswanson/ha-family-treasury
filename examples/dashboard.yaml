@@ -1,20 +1,44 @@
 title: Family Treasury
 views:
-  - title: Accounts
-    path: accounts
-    cards:
-      - type: entities
-        title: Emma Account
-        entities:
-          - entity: sensor.emma_balance
-          - entity: sensor.emma_pending_interest
-      - type: history-graph
-        title: Emma Balance History
-        entities:
-          - entity: sensor.emma_balance
-        hours_to_show: 720
-      - type: markdown
-        title: Recent Transactions
-        content: |
-          Use `family_treasury.get_transactions` in Developer Tools > Actions,
-          or display `recent_transactions` from the balance sensor attributes.
+  - type: sections
+    max_columns: 4
+    title: Emma's Allowance
+    path: emma-s-allowance
+    sections:
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: >-
+              Current Balance: {{ state_attr('sensor.emma_balance',
+              'formatted_balance') }}
+          - type: custom:family-treasury-transactions
+            title: Recent Transactions
+            account_id: emma
+            page_size: 10
+            enable_pagination: true
+            types:
+              - deposit
+              - withdraw
+              - adjustment
+              - interest_payout
+            grid_options:
+              columns: 36
+              rows: auto
+        column_span: 3
+      - type: grid
+        cards:
+          - type: entities
+            entities:
+              - entity: sensor.emma_pending_interest
+                name: Pending Interest
+          - type: history-graph
+            title: Balance History
+            entities:
+              - entity: sensor.emma_balance
+            hours_to_show: 720
+        column_span: 1
+    header:
+      card:
+        type: markdown
+        text_only: true
+        content: '# Emma''s Account'

@@ -12,11 +12,14 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ACCOUNT_TYPES,
     CONF_ACCOUNT_ID,
+    CONF_ACCOUNT_TYPE,
     CONF_ACTIVE,
     CONF_AMOUNT,
     CONF_APR_PERCENT,
     CONF_CURRENCY_CODE,
+    CONF_DESTINATION_ACCOUNT_ID,
     CONF_DESCRIPTION,
     CONF_DISPLAY_NAME,
     CONF_END,
@@ -26,6 +29,8 @@ from .const import (
     CONF_LIMIT,
     CONF_LOCALE,
     CONF_OFFSET,
+    CONF_PARENT_ACCOUNT_ID,
+    CONF_SOURCE_ACCOUNT_ID,
     CONF_START,
     CONF_TYPE,
     DATA_RUNTIME,
@@ -36,17 +41,24 @@ from .const import (
     SERVICE_CREATE_ACCOUNT,
     SERVICE_DEPOSIT,
     SERVICE_GET_TRANSACTIONS,
+    SERVICE_TRANSFER,
     SERVICE_UPDATE_ACCOUNT,
     SERVICE_WITHDRAW,
     TX_TYPES,
 )
 
 AMOUNT_VALUE = vol.Any(str, int, float)
+TX_TYPE_FILTER = vol.Any(
+    vol.In(sorted(TX_TYPES)),
+    [vol.In(sorted(TX_TYPES))],
+)
 
 CREATE_ACCOUNT_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ACCOUNT_ID): cv.slug,
         vol.Required(CONF_DISPLAY_NAME): cv.string,
+        vol.Optional(CONF_ACCOUNT_TYPE): vol.In(sorted(ACCOUNT_TYPES)),
+        vol.Optional(CONF_PARENT_ACCOUNT_ID): cv.slug,
         vol.Optional(CONF_INITIAL_BALANCE): AMOUNT_VALUE,
         vol.Optional(CONF_APR_PERCENT): AMOUNT_VALUE,
         vol.Optional(CONF_INTEREST_CALC_FREQUENCY): vol.In(sorted(FREQUENCIES)),
@@ -77,12 +89,21 @@ BALANCE_CHANGE_SCHEMA = vol.Schema(
     }
 )
 
+TRANSFER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_SOURCE_ACCOUNT_ID): cv.slug,
+        vol.Required(CONF_DESTINATION_ACCOUNT_ID): cv.slug,
+        vol.Required(CONF_AMOUNT): AMOUNT_VALUE,
+        vol.Optional(CONF_DESCRIPTION, default=""): cv.string,
+    }
+)
+
 GET_TRANSACTIONS_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_ACCOUNT_ID): cv.slug,
         vol.Optional(CONF_START): vol.Any(cv.datetime, cv.string),
         vol.Optional(CONF_END): vol.Any(cv.datetime, cv.string),
-        vol.Optional(CONF_TYPE): vol.In(sorted(TX_TYPES)),
+        vol.Optional(CONF_TYPE): TX_TYPE_FILTER,
         vol.Optional(CONF_LIMIT, default=100): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=MAX_TRANSACTION_QUERY_LIMIT)
         ),
@@ -148,6 +169,18 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
 
+    async def handle_transfer(call: ServiceCall) -> None:
+        coordinator = _default_coordinator(hass)
+        try:
+            await coordinator.async_transfer(
+                source_account_id=call.data[CONF_SOURCE_ACCOUNT_ID],
+                destination_account_id=call.data[CONF_DESTINATION_ACCOUNT_ID],
+                amount=call.data[CONF_AMOUNT],
+                description=call.data.get(CONF_DESCRIPTION, ""),
+            )
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+
     async def handle_get_transactions(call: ServiceCall) -> ServiceResponse:
         coordinator = _default_coordinator(hass)
         payload: dict[str, Any] = dict(call.data)
@@ -189,6 +222,12 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_TRANSFER,
+        handle_transfer,
+        schema=TRANSFER_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_GET_TRANSACTIONS,
         handle_get_transactions,
         schema=GET_TRANSACTIONS_SCHEMA,
@@ -202,6 +241,7 @@ def async_register_services(hass: HomeAssistant) -> Callable[[], None]:
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,
+            SERVICE_TRANSFER,
             SERVICE_GET_TRANSACTIONS,
         ):
             if hass.services.has_service(DOMAIN, service):

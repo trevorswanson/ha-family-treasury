@@ -4,19 +4,40 @@ create_account:
   fields:
     account_id:
       name: Account ID
-      description: Unique slug account ID (for example emma).
+      description: Unique account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma
       required: true
       selector:
         text:
     display_name:
       name: Display Name
       description: Friendly account name.
+      example: Emma
       required: true
+      selector:
+        text:
+    account_type:
+      name: Account Type
+      description: Account type. Use loan for debt accounts.
+      example: primary
+      required: false
+      selector:
+        select:
+          options:
+            - primary
+            - bucket
+            - loan
+    parent_account_id:
+      name: Parent Account ID
+      description: Parent primary account slug for child accounts and loans.
+      example: emma
+      required: false
       selector:
         text:
     initial_balance:
       name: Initial Balance
-      description: Optional initial balance in major units.
+      description: Initial balance. For loans this is the principal to disburse.
+      example: 25.00
       required: false
       selector:
         number:
@@ -24,6 +45,7 @@ create_account:
     apr_percent:
       name: APR Percent
       description: Optional account APR override.
+      example: 4.5
       required: false
       selector:
         number:
@@ -31,6 +53,8 @@ create_account:
           mode: box
     interest_calc_frequency:
       name: Interest Calculation Frequency
+      description: Optional interest accrual frequency.
+      example: daily
       required: false
       selector:
         select:
@@ -40,6 +64,8 @@ create_account:
             - monthly
     interest_payout_frequency:
       name: Interest Payout Frequency
+      description: Optional frequency for paying pending interest into balance.
+      example: monthly
       required: false
       selector:
         select:
@@ -49,11 +75,15 @@ create_account:
             - monthly
     currency_code:
       name: Currency Code
+      description: Optional ISO 4217 currency code override.
+      example: USD
       required: false
       selector:
         text:
     locale:
       name: Locale
+      description: Optional locale override for currency formatting.
+      example: en_US
       required: false
       selector:
         text:
@@ -64,21 +94,29 @@ update_account:
   fields:
     account_id:
       name: Account ID
+      description: Existing account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma
       required: true
       selector:
         text:
     display_name:
       name: Display Name
+      description: Updated friendly account name.
+      example: Emma Savings
       required: false
       selector:
         text:
     active:
       name: Active
+      description: Set to false to archive/deactivate the account.
+      example: true
       required: false
       selector:
         boolean:
     apr_percent:
       name: APR Percent
+      description: Updated APR percentage for this account.
+      example: 3.25
       required: false
       selector:
         number:
@@ -86,6 +124,8 @@ update_account:
           mode: box
     interest_calc_frequency:
       name: Interest Calculation Frequency
+      description: Updated interest accrual frequency.
+      example: weekly
       required: false
       selector:
         select:
@@ -95,6 +135,8 @@ update_account:
             - monthly
     interest_payout_frequency:
       name: Interest Payout Frequency
+      description: Updated frequency for paying pending interest into balance.
+      example: monthly
       required: false
       selector:
         select:
@@ -104,11 +146,15 @@ update_account:
             - monthly
     currency_code:
       name: Currency Code
+      description: Updated ISO 4217 currency code.
+      example: ISK
       required: false
       selector:
         text:
     locale:
       name: Locale
+      description: Updated locale for currency formatting.
+      example: is_IS
       required: false
       selector:
         text:
@@ -119,11 +165,15 @@ deposit:
   fields:
     account_id:
       name: Account ID
+      description: Existing account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma
       required: true
       selector:
         text:
     amount:
       name: Amount
+      description: Deposit amount.
+      example: 10.00
       required: true
       selector:
         number:
@@ -131,6 +181,8 @@ deposit:
           mode: box
     description:
       name: Description
+      description: Optional transaction note.
+      example: Weekly allowance
       required: false
       selector:
         text:
@@ -141,11 +193,15 @@ withdraw:
   fields:
     account_id:
       name: Account ID
+      description: Existing account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma
       required: true
       selector:
         text:
     amount:
       name: Amount
+      description: Withdrawal amount.
+      example: 5.50
       required: true
       selector:
         number:
@@ -153,6 +209,8 @@ withdraw:
           mode: box
     description:
       name: Description
+      description: Optional transaction note.
+      example: Bought a book
       required: false
       selector:
         text:
@@ -163,17 +221,58 @@ adjust_balance:
   fields:
     account_id:
       name: Account ID
+      description: Existing account ID slug (lowercase letters, numbers, and underscores only).
+      example: emma
       required: true
       selector:
         text:
     amount:
       name: Amount
+      description: Signed adjustment amount.
+      example: -1.25
       required: true
       selector:
         number:
           mode: box
     description:
       name: Description
+      description: Reason for administrative adjustment.
+      example: Correction for duplicate entry
+      required: false
+      selector:
+        text:
+
+transfer:
+  name: Transfer
+  description: Transfer funds between two accounts in the same ownership tree.
+  fields:
+    source_account_id:
+      name: Source Account ID
+      description: Account slug to debit.
+      example: emma
+      required: true
+      selector:
+        text:
+    destination_account_id:
+      name: Destination Account ID
+      description: Account slug to credit.
+      example: emma_loan_1
+      required: true
+      selector:
+        text:
+    amount:
+      name: Amount
+      description: Positive transfer amount.
+      example: 5.00
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+    description:
+      name: Description
+      description: Optional transfer note.
+      example: Loan repayment
       required: false
       selector:
         text:
@@ -184,34 +283,47 @@ get_transactions:
   fields:
     account_id:
       name: Account ID
+      description: Optional account ID slug filter.
+      example: emma
       required: false
       selector:
         text:
     start:
       name: Start
       description: Optional start datetime (ISO format).
+      example: "2026-02-01T00:00:00-05:00"
       required: false
       selector:
         text:
     end:
       name: End
       description: Optional end datetime (ISO format).
+      example: "2026-02-29T23:59:59-05:00"
       required: false
       selector:
         text:
     type:
-      name: Type
+      name: Types
+      description: Optional transaction type filters (choose one or more).
+      example:
+        - deposit
+        - withdraw
       required: false
       selector:
         select:
+          multiple: true
           options:
             - deposit
             - withdraw
             - adjustment
             - interest_accrual
             - interest_payout
+            - transfer_out
+            - transfer_in
     limit:
       name: Limit
+      description: Maximum number of records to return.
+      example: 100
       required: false
       selector:
         number:
@@ -220,6 +332,8 @@ get_transactions:
           mode: box
     offset:
       name: Offset
+      description: Number of matching records to skip.
+      example: 0
       required: false
       selector:
         number:
