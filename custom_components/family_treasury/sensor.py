@@ -13,7 +13,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ACCOUNT_TYPE_LOAN,
     ATTR_ACCOUNT_ID,
+    ATTR_ACCOUNT_TYPE,
     ATTR_CURRENCY_CODE,
     ATTR_DISPLAY_NAME,
     ATTR_FORMATTED_BALANCE,
@@ -21,6 +23,7 @@ from .const import (
     ATTR_LAST_INTEREST_CALC_AT,
     ATTR_LAST_INTEREST_PAYOUT_AT,
     ATTR_LOCALE,
+    ATTR_PARENT_ACCOUNT_ID,
     ATTR_RECENT_TRANSACTIONS,
     SIGNAL_ACCOUNTS_UPDATED,
 )
@@ -47,10 +50,31 @@ async def async_setup_entry(
             if account_id in known_accounts:
                 continue
             known_accounts.add(account_id)
+            account = coordinator.account(account_id)
             new_entities.append(FamilyTreasuryBalanceSensor(coordinator, entry, account_id))
             new_entities.append(
                 FamilyTreasuryPendingInterestSensor(coordinator, entry, account_id)
             )
+            if account is not None and account.account_type == ACCOUNT_TYPE_LOAN:
+                new_entities.append(
+                    FamilyTreasuryLoanPrincipalSensor(coordinator, entry, account_id)
+                )
+                new_entities.append(
+                    FamilyTreasuryLoanOriginalPrincipalSensor(
+                        coordinator, entry, account_id
+                    )
+                )
+                new_entities.append(
+                    FamilyTreasuryLoanAccruedInterestSensor(
+                        coordinator, entry, account_id
+                    )
+                )
+                new_entities.append(
+                    FamilyTreasuryLoanTotalBalanceSensor(coordinator, entry, account_id)
+                )
+                new_entities.append(
+                    FamilyTreasuryLoanPayoffProgressSensor(coordinator, entry, account_id)
+                )
 
         if new_entities:
             async_add_entities(new_entities)
@@ -111,6 +135,8 @@ class FamilyTreasuryBaseSensor(CoordinatorEntity[FamilyTreasuryCoordinator], Sen
 
         return {
             ATTR_ACCOUNT_ID: state[ATTR_ACCOUNT_ID],
+            ATTR_ACCOUNT_TYPE: state[ATTR_ACCOUNT_TYPE],
+            ATTR_PARENT_ACCOUNT_ID: state[ATTR_PARENT_ACCOUNT_ID],
             ATTR_DISPLAY_NAME: state[ATTR_DISPLAY_NAME],
             ATTR_CURRENCY_CODE: state[ATTR_CURRENCY_CODE],
             ATTR_LOCALE: state[ATTR_LOCALE],
@@ -174,3 +200,150 @@ class FamilyTreasuryPendingInterestSensor(FamilyTreasuryBaseSensor):
         if state is None:
             return None
         return state["pending_interest_major"]
+
+
+class FamilyTreasuryLoanPrincipalSensor(FamilyTreasuryBaseSensor):
+    """Outstanding loan principal sensor."""
+
+    def __init__(
+        self,
+        coordinator: FamilyTreasuryCoordinator,
+        entry: ConfigEntry,
+        account_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry, account_id)
+        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_principal"
+
+    @property
+    def name(self) -> str:
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return f"{self._account_id} Loan Principal"
+        return f"{account.display_name} Loan Principal"
+
+    @property
+    def native_value(self) -> Decimal | None:
+        state = self._state_data()
+        if state is None:
+            return None
+        return state["loan_principal_major"]
+
+
+class FamilyTreasuryLoanAccruedInterestSensor(FamilyTreasuryBaseSensor):
+    """Accrued (pending) interest for a loan."""
+
+    def __init__(
+        self,
+        coordinator: FamilyTreasuryCoordinator,
+        entry: ConfigEntry,
+        account_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry, account_id)
+        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_accrued_interest"
+
+    @property
+    def name(self) -> str:
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return f"{self._account_id} Loan Accrued Interest"
+        return f"{account.display_name} Loan Accrued Interest"
+
+    @property
+    def native_value(self) -> Decimal | None:
+        state = self._state_data()
+        if state is None:
+            return None
+        return state["loan_accrued_interest_major"]
+
+
+class FamilyTreasuryLoanOriginalPrincipalSensor(FamilyTreasuryBaseSensor):
+    """Original principal captured at loan creation."""
+
+    def __init__(
+        self,
+        coordinator: FamilyTreasuryCoordinator,
+        entry: ConfigEntry,
+        account_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry, account_id)
+        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_original_principal"
+
+    @property
+    def name(self) -> str:
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return f"{self._account_id} Loan Original Principal"
+        return f"{account.display_name} Loan Original Principal"
+
+    @property
+    def native_value(self) -> Decimal | None:
+        state = self._state_data()
+        if state is None:
+            return None
+        return state["loan_original_principal_major"]
+
+
+class FamilyTreasuryLoanTotalBalanceSensor(FamilyTreasuryBaseSensor):
+    """Total loan debt including pending interest."""
+
+    def __init__(
+        self,
+        coordinator: FamilyTreasuryCoordinator,
+        entry: ConfigEntry,
+        account_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry, account_id)
+        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_total_balance"
+
+    @property
+    def name(self) -> str:
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return f"{self._account_id} Loan Total Balance"
+        return f"{account.display_name} Loan Total Balance"
+
+    @property
+    def native_value(self) -> Decimal | None:
+        state = self._state_data()
+        if state is None:
+            return None
+        return state["loan_total_balance_major"]
+
+
+class FamilyTreasuryLoanPayoffProgressSensor(FamilyTreasuryBaseSensor):
+    """Percent progress toward full loan payoff."""
+
+    def __init__(
+        self,
+        coordinator: FamilyTreasuryCoordinator,
+        entry: ConfigEntry,
+        account_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry, account_id)
+        self._attr_unique_id = f"{entry.entry_id}_{account_id}_loan_payoff_progress"
+
+    @property
+    def name(self) -> str:
+        account = self.coordinator.account(self._account_id)
+        if account is None:
+            return f"{self._account_id} Loan Payoff Progress"
+        return f"{account.display_name} Loan Payoff Progress"
+
+    @property
+    def native_value(self) -> Decimal | None:
+        state = self._state_data()
+        if state is None:
+            return None
+        return state["loan_payoff_progress_percent"]
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        return "%"
+
+    @property
+    def device_class(self) -> SensorDeviceClass | None:
+        return None
+
+    @property
+    def suggested_display_precision(self) -> int | None:
+        return 2

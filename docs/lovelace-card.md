@@ -19,7 +19,8 @@ type: custom:family-treasury-transactions
 - `enable_pagination` (default: `true`)
 - `allow_page_size_override` (default: `false`)
 - `page_size_options` (default: `[5, 10, 25, 50]`)
-- `types` (default: `[deposit, withdraw, adjustment, interest_accrual, interest_payout]`)
+- `types` (default: `[deposit, withdraw, adjustment, interest_accrual,`
+  `interest_payout, transfer_out, transfer_in]`)
 
 If `types` is omitted, all transaction types are shown.
 

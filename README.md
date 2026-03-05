@@ -67,8 +67,8 @@ Detailed docs live in [`docs/`](docs/README.md):
 ## Roadmap
 
 - [ ] Savings buckets/sub-accounts runtime behavior
-- [ ] Account-to-account transfers
-- [ ] Loan tracking or screen-time conversion features
+- [ ] Advanced cross-bucket transfer policies
+- [ ] Expanded loan tools (payment schedules, terms, automation helpers)
 
 ## Integration Icon
 

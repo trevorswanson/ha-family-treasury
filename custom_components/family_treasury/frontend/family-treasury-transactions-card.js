@@ -113,6 +113,8 @@ class FamilyTreasuryTransactionsCard extends HTMLElement {
       "adjustment",
       "interest_accrual",
       "interest_payout",
+      "transfer_out",
+      "transfer_in",
     ];
     const values = Array.isArray(rawTypes) ? rawTypes : [rawTypes];
     const normalized = values

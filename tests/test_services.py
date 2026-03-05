@@ -14,8 +14,13 @@ try:
 
     from custom_components.family_treasury.const import (
         CONF_ACCOUNT_ID,
+        CONF_ACCOUNT_TYPE,
         CONF_AMOUNT,
+        CONF_DESTINATION_ACCOUNT_ID,
         CONF_DESCRIPTION,
+        CONF_LOAN_PRINCIPAL,
+        CONF_PARENT_ACCOUNT_ID,
+        CONF_SOURCE_ACCOUNT_ID,
         CONF_TYPE,
         DATA_RUNTIME,
         DOMAIN,
@@ -23,6 +28,7 @@ try:
         SERVICE_CREATE_ACCOUNT,
         SERVICE_DEPOSIT,
         SERVICE_GET_TRANSACTIONS,
+        SERVICE_TRANSFER,
         SERVICE_UPDATE_ACCOUNT,
         SERVICE_WITHDRAW,
     )
@@ -63,6 +69,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
             async_deposit=AsyncMock(),
             async_withdraw=AsyncMock(),
             async_adjust_balance=AsyncMock(),
+            async_transfer=AsyncMock(),
             async_get_transactions=AsyncMock(return_value={"transactions": []}),
         )
         registry = _ServiceRegistry()
@@ -87,6 +94,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,
+            SERVICE_TRANSFER,
             SERVICE_GET_TRANSACTIONS,
         ):
             self.assertTrue(registry.has_service(DOMAIN, service))
@@ -99,6 +107,7 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
             SERVICE_DEPOSIT,
             SERVICE_WITHDRAW,
             SERVICE_ADJUST_BALANCE,
+            SERVICE_TRANSFER,
             SERVICE_GET_TRANSACTIONS,
         ):
             self.assertFalse(registry.has_service(DOMAIN, service))
@@ -131,6 +140,23 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(data={CONF_ACCOUNT_ID: "emma", CONF_AMOUNT: "-0.10"})
         )
         coordinator.async_adjust_balance.assert_awaited_once()
+
+        await registry._handlers[(DOMAIN, SERVICE_TRANSFER)]["handler"](
+            SimpleNamespace(
+                data={
+                    CONF_SOURCE_ACCOUNT_ID: "emma",
+                    CONF_DESTINATION_ACCOUNT_ID: "emma_loan_1",
+                    CONF_AMOUNT: "1.50",
+                    CONF_DESCRIPTION: "Repayment",
+                }
+            )
+        )
+        coordinator.async_transfer.assert_awaited_once_with(
+            source_account_id="emma",
+            destination_account_id="emma_loan_1",
+            amount="1.50",
+            description="Repayment",
+        )
 
         await registry._handlers[(DOMAIN, SERVICE_CREATE_ACCOUNT)]["handler"](
             SimpleNamespace(data={"account_id": "emma", "display_name": "Emma"})
@@ -172,6 +198,26 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(vol.Invalid):
             schema({CONF_TYPE: ["deposit", "unknown"]})
+
+        validated_transfer = schema({CONF_TYPE: ["transfer_out", "transfer_in"]})
+        self.assertEqual(validated_transfer[CONF_TYPE], ["transfer_out", "transfer_in"])
+
+    async def test_create_account_schema_accepts_loan_fields(self) -> None:
+        hass, _coordinator, registry = self._build_hass()
+        async_register_services(hass)
+
+        schema = registry._handlers[(DOMAIN, SERVICE_CREATE_ACCOUNT)]["schema"]
+        validated = schema(
+            {
+                CONF_ACCOUNT_ID: "emma_loan_1",
+                "display_name": "Emma Loan #1",
+                CONF_ACCOUNT_TYPE: "loan",
+                CONF_PARENT_ACCOUNT_ID: "emma",
+                CONF_LOAN_PRINCIPAL: "20.00",
+            }
+        )
+        self.assertEqual(validated[CONF_ACCOUNT_TYPE], "loan")
+        self.assertEqual(validated[CONF_PARENT_ACCOUNT_ID], "emma")
 
     async def test_value_error_is_wrapped_as_homeassistant_error(self) -> None:
         hass, coordinator, registry = self._build_hass()

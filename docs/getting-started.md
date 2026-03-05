@@ -65,6 +65,37 @@ data:
 
 ## Next Steps
 
+- Optional: create a loan account tied to the child primary account:
+
+```yaml
+service: family_treasury.create_account
+data:
+  account_id: emma_loan_1
+  display_name: Emma Loan #1
+  account_type: loan
+  parent_account_id: emma
+  loan_principal: 20.00
+```
+
+- Optional: repay loan balance via transfer:
+
+```yaml
+service: family_treasury.transfer
+data:
+  source_account_id: emma
+  destination_account_id: emma_loan_1
+  amount: 2.00
+  description: Weekly repayment
+```
+
+- Optional: after creating a loan, confirm loan sensors exist:
+  - `sensor.emma_loan_1_balance`
+  - `sensor.emma_loan_1_loan_principal`
+  - `sensor.emma_loan_1_loan_original_principal`
+  - `sensor.emma_loan_1_loan_accrued_interest`
+  - `sensor.emma_loan_1_loan_total_balance`
+  - `sensor.emma_loan_1_loan_payoff_progress`
+
 - [Accounts and Money Movement](accounts-and-money-movement.md)
 - [Services Reference](services-reference.md)
 - [Lovelace Card](lovelace-card.md)

@@ -6,6 +6,8 @@ Each account has a stable slug `account_id` and mutable settings:
 
 - `display_name`
 - `active`
+- `account_type` (`primary`, `bucket`, `loan`)
+- `parent_account_id` (for non-primary child accounts)
 - `apr_percent`
 - interest frequencies (`calc` and `payout`)
 - `currency_code`
@@ -14,6 +16,7 @@ Each account has a stable slug `account_id` and mutable settings:
 Behavioral notes:
 
 - `account_id` must be slug-safe (lowercase letters, numbers, underscores).
+- Loans are explicit accounts (`account_type: loan`) tied to a primary parent account.
 - Currency changes are restricted on non-empty accounts.
 - Account values are internally integer-based for precision.
 
@@ -49,19 +52,54 @@ data:
   description: Correction
 ```
 
+### Transfer (including Loan Repayment)
+
+```yaml
+service: family_treasury.transfer
+data:
+  source_account_id: emma
+  destination_account_id: emma_loan_1
+  amount: 2.00
+  description: Weekly repayment
+```
+
 ## Validation Rules
 
 - Deposits must be positive.
 - Withdrawals must be positive.
 - Adjustments must be non-zero and may be positive or negative.
-- Withdrawals and negative adjustments cannot push balance below zero.
+- Non-loan withdrawals and negative adjustments cannot push balance below zero.
+- Loan accounts cannot be used with `deposit` or `withdraw`.
+- Loan repayments must use `transfer` from the loan parent primary account.
+- Transfers require source/destination to be in the same ownership tree.
 
-## Child Accounts / Buckets
+## Loans and Child Accounts
 
-Family Treasury defines account type constants for primary and bucket-style
-accounts, but full runtime child-account workflows are still roadmap work.
+Loan accounts are first-class accounts with debt semantics:
 
-Current status:
+- Loan creation disburses principal to the linked primary account.
+- Loan balances are negative, and interest compounding makes them more negative.
+- Sensor semantics for loan accounts:
+  - `*_balance` is the signed ledger balance (negative debt). It reflects
+    principal plus any interest that has already been paid out to the ledger,
+    and excludes still-pending accrued interest.
+  - `*_pending_interest` is accrued interest that has not yet been paid out to
+    ledger principal.
+  - `*_loan_principal` is the positive view of current outstanding ledger
+    principal (`abs(*_balance)`). It is not the original loan principal.
+  - `*_loan_original_principal` is the original principal captured at loan
+    creation. For older loans created before this field existed, a fallback
+    value derived from current principal may be shown.
+  - `*_loan_accrued_interest` is the same pending amount as
+    `*_pending_interest`, but loan-labeled for dashboards.
+  - `*_loan_total_balance` is a payoff-style total:
+    `*_loan_principal + *_loan_accrued_interest`.
+  - `*_loan_payoff_progress` is payoff progress percentage relative to
+    `*_loan_original_principal`, computed from current total owed
+    (`*_loan_total_balance`).
+  - Example: if `*_balance = -8.00` and `*_pending_interest = 0.12`, then
+    `*_loan_total_balance = 8.12`. If original principal was `20.00`, then
+    `*_loan_payoff_progress = 59.40%`.
 
-- Supported and documented runtime flows are primary account operations.
-- Use roadmap/issues for sub-account feature tracking.
+Transfers are designed to be generic so future sub-accounts/buckets/goals can
+reuse the same movement model.

@@ -5,27 +5,39 @@ from __future__ import annotations
 import asyncio
 import unittest
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 HA_AVAILABLE = True
 try:
     from custom_components.family_treasury.const import (
+        ACCOUNT_TYPE_LOAN,
+        ACCOUNT_TYPE_PRIMARY,
         CONF_ACCOUNT_ID,
+        CONF_ACCOUNT_TYPE,
         CONF_APR_PERCENT,
         CONF_CURRENCY_CODE,
         CONF_DEFAULT_APR_PERCENT,
+        CONF_DESTINATION_ACCOUNT_ID,
         CONF_DISPLAY_NAME,
         CONF_END,
+        CONF_INITIAL_BALANCE,
         CONF_INTEREST_CALC_FREQUENCY,
         CONF_INTEREST_PAYOUT_FREQUENCY,
         CONF_LIMIT,
+        CONF_LOAN_PRINCIPAL,
         CONF_LOCALE,
         CONF_OFFSET,
+        CONF_PARENT_ACCOUNT_ID,
+        CONF_SOURCE_ACCOUNT_ID,
         CONF_START,
         CONF_TYPE,
         TX_ADJUSTMENT,
         TX_DEPOSIT,
+        TX_INTEREST_PAYOUT,
+        TX_TRANSFER_IN,
+        TX_TRANSFER_OUT,
         TX_WITHDRAW,
     )
     from custom_components.family_treasury.coordinator import FamilyTreasuryCoordinator
@@ -37,10 +49,11 @@ except ModuleNotFoundError:
 class _StorageStub:
     def __init__(self) -> None:
         self.last_tx_id = 0
+        self._next_tx_id = 1
         self.async_replace_accounts = AsyncMock()
         self.async_create_monthly_snapshot = AsyncMock()
         self.async_append_transaction = AsyncMock()
-        self.async_reserve_tx_id = AsyncMock(side_effect=[1, 2, 3, 4, 5])
+        self.async_reserve_tx_id = AsyncMock(side_effect=self._reserve_tx_id)
         self.async_list_transactions = AsyncMock(
             return_value={
                 "transactions": [],
@@ -51,10 +64,20 @@ class _StorageStub:
             }
         )
 
+    async def _reserve_tx_id(self) -> int:
+        tx_id = self._next_tx_id
+        self._next_tx_id += 1
+        self.last_tx_id = tx_id
+        return tx_id
+
 
 def _build_coordinator() -> FamilyTreasuryCoordinator:
     coordinator = object.__new__(FamilyTreasuryCoordinator)
-    coordinator.hass = SimpleNamespace(config=SimpleNamespace(time_zone="UTC"))
+    coordinator.hass = SimpleNamespace(
+        config=SimpleNamespace(time_zone="UTC"),
+        data={},
+        verify_event_loop_thread=lambda *_args, **_kwargs: None,
+    )
     coordinator.entry = SimpleNamespace(data={}, options={})
     coordinator.storage = _StorageStub()
     coordinator._lock = asyncio.Lock()
@@ -117,12 +140,55 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["active"], True)
         self.assertEqual(str(state["balance_major"]), "12.34")
         self.assertEqual(state["recent_transactions"], [{"tx_id": 1}])
+        self.assertIsNone(state["loan_original_principal_major"])
+        self.assertIsNone(state["loan_payoff_progress_percent"])
 
         required = coordinator._require_account("emma")
         self.assertEqual(required.account_id, "emma")
 
         with self.assertRaises(ValueError):
             coordinator._require_account("missing")
+
+    async def test_loan_account_state_includes_original_principal_and_progress(self) -> None:
+        coordinator = _build_coordinator()
+        loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan #1",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-800,
+            original_loan_principal_minor=2000,
+            pending_interest_micro_minor=12_000_000,
+        )
+        coordinator._accounts["emma_loan_1"] = loan
+
+        state = coordinator.account_state("emma_loan_1")
+        self.assertIsNotNone(state)
+        assert state is not None
+        self.assertEqual(state["loan_original_principal_major"], Decimal("20"))
+        self.assertEqual(state["loan_total_balance_major"], Decimal("8.12"))
+        self.assertEqual(state["loan_payoff_progress_percent"], Decimal("59.40"))
+
+    async def test_loan_account_state_falls_back_when_original_principal_missing(self) -> None:
+        coordinator = _build_coordinator()
+        loan = AccountRecord(
+            account_id="legacy_loan",
+            display_name="Legacy Loan",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-800,
+            original_loan_principal_minor=None,
+            pending_interest_micro_minor=0,
+        )
+        coordinator._accounts["legacy_loan"] = loan
+
+        state = coordinator.account_state("legacy_loan")
+        self.assertIsNotNone(state)
+        assert state is not None
+        self.assertEqual(state["loan_original_principal_major"], Decimal("8"))
+        self.assertEqual(state["loan_payoff_progress_percent"], Decimal("0"))
 
     async def test_prepend_recent_transaction_caps_length(self) -> None:
         coordinator = _build_coordinator()
@@ -339,6 +405,207 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
                 description="too much",
             )
 
+    async def test_create_loan_account_disburses_principal_and_logs_transfer(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            currency_code="USD",
+            balance_minor=500,
+        )
+        coordinator._accounts = {"emma": parent}
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_create_account(
+            {
+                CONF_ACCOUNT_ID: "emma_loan_1",
+                CONF_DISPLAY_NAME: "Emma Loan #1",
+                CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
+                CONF_PARENT_ACCOUNT_ID: "emma",
+                CONF_LOAN_PRINCIPAL: "20.00",
+            }
+        )
+
+        loan = coordinator._accounts["emma_loan_1"]
+        self.assertEqual(loan.parent_account_id, "emma")
+        self.assertEqual(loan.account_type, ACCOUNT_TYPE_LOAN)
+        self.assertEqual(loan.balance_minor, -2000)
+        self.assertEqual(loan.original_loan_principal_minor, 2000)
+        self.assertEqual(parent.balance_minor, 2500)
+
+        loan_recent = coordinator._recent_transactions["emma_loan_1"]
+        parent_recent = coordinator._recent_transactions["emma"]
+        self.assertEqual(loan_recent[0]["type"], TX_TRANSFER_OUT)
+        self.assertEqual(parent_recent[0]["type"], TX_TRANSFER_IN)
+
+        state = coordinator.account_state("emma_loan_1")
+        assert state is not None
+        self.assertEqual(str(state["loan_principal_major"]), "20")
+        self.assertEqual(str(state["loan_total_balance_major"]), "20")
+        self.assertEqual(str(state["loan_original_principal_major"]), "20")
+        self.assertEqual(str(state["loan_payoff_progress_percent"]), "0")
+
+    async def test_create_loan_account_validates_required_fields(self) -> None:
+        coordinator = _build_coordinator()
+        parent = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            currency_code="USD",
+        )
+        coordinator._accounts = {"emma": parent}
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_create_account(
+                {
+                    CONF_ACCOUNT_ID: "loan_missing_parent",
+                    CONF_DISPLAY_NAME: "Missing Parent",
+                    CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
+                    CONF_LOAN_PRINCIPAL: "10.00",
+                }
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_create_account(
+                {
+                    CONF_ACCOUNT_ID: "loan_missing_principal",
+                    CONF_DISPLAY_NAME: "Missing Principal",
+                    CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
+                    CONF_PARENT_ACCOUNT_ID: "emma",
+                }
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_create_account(
+                {
+                    CONF_ACCOUNT_ID: "loan_with_initial_balance",
+                    CONF_DISPLAY_NAME: "Invalid Loan",
+                    CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
+                    CONF_PARENT_ACCOUNT_ID: "emma",
+                    CONF_LOAN_PRINCIPAL: "10.00",
+                    CONF_INITIAL_BALANCE: "1.00",
+                }
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_create_account(
+                {
+                    CONF_ACCOUNT_ID: "loan_unknown_parent",
+                    CONF_DISPLAY_NAME: "Unknown Parent",
+                    CONF_ACCOUNT_TYPE: ACCOUNT_TYPE_LOAN,
+                    CONF_PARENT_ACCOUNT_ID: "missing",
+                    CONF_LOAN_PRINCIPAL: "10.00",
+                }
+            )
+
+    async def test_transfer_validates_relationship_direction_and_funds(self) -> None:
+        coordinator = _build_coordinator()
+        emma = AccountRecord(
+            account_id="emma",
+            display_name="Emma",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        emma_bucket = AccountRecord(
+            account_id="emma_bucket",
+            display_name="Emma Bucket",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=200,
+        )
+        emma_loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan #1",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-500,
+        )
+        sam = AccountRecord(
+            account_id="sam",
+            display_name="Sam",
+            account_type=ACCOUNT_TYPE_PRIMARY,
+            currency_code="USD",
+            balance_minor=1000,
+        )
+        coordinator._accounts = {
+            "emma": emma,
+            "emma_bucket": emma_bucket,
+            "emma_loan_1": emma_loan,
+            "sam": sam,
+        }
+        coordinator._async_refresh_state = AsyncMock()
+
+        await coordinator.async_transfer(
+            source_account_id="emma",
+            destination_account_id="emma_loan_1",
+            amount="1.00",
+            description="repay",
+        )
+        self.assertEqual(emma.balance_minor, 900)
+        self.assertEqual(emma_loan.balance_minor, -400)
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_transfer(
+                source_account_id="emma_loan_1",
+                destination_account_id="emma",
+                amount="1.00",
+                description="invalid",
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_transfer(
+                source_account_id="emma",
+                destination_account_id="sam",
+                amount="1.00",
+                description="cross child",
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_transfer(
+                source_account_id="emma_bucket",
+                destination_account_id="emma_loan_1",
+                amount="1.00",
+                description="non-parent repayment",
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_transfer(
+                source_account_id="emma",
+                destination_account_id="emma_loan_1",
+                amount="1000.00",
+                description="insufficient",
+            )
+
+    async def test_deposit_withdraw_reject_loan_accounts(self) -> None:
+        coordinator = _build_coordinator()
+        loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan #1",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            balance_minor=-1000,
+        )
+        coordinator._accounts = {"emma_loan_1": loan}
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_deposit(
+                account_id="emma_loan_1",
+                amount="1.00",
+                description="nope",
+            )
+
+        with self.assertRaises(ValueError):
+            await coordinator.async_withdraw(
+                account_id="emma_loan_1",
+                amount="1.00",
+                description="nope",
+            )
+
     async def test_update_account_currency_restriction(self) -> None:
         coordinator = _build_coordinator()
         account = AccountRecord(
@@ -383,6 +650,36 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(account.last_calc_at)
         self.assertIsNotNone(account.last_payout_at)
         self.assertGreaterEqual(account.balance_minor, 10_000)
+
+    async def test_process_interest_for_loan_reduces_balance_on_payout(self) -> None:
+        coordinator = _build_coordinator()
+        loan = AccountRecord(
+            account_id="emma_loan_1",
+            display_name="Emma Loan #1",
+            account_type=ACCOUNT_TYPE_LOAN,
+            parent_account_id="emma",
+            currency_code="USD",
+            apr_bps=1000,
+            calc_frequency="daily",
+            payout_frequency="daily",
+            balance_minor=-10_000,
+            pending_interest_micro_minor=2_000_000,
+            created_at="2026-01-01T00:00:00+00:00",
+            last_calc_at="2026-01-01T00:00:00+00:00",
+            last_payout_at="2026-01-01T00:00:00+00:00",
+        )
+        coordinator._append_transaction = AsyncMock()
+
+        changed = await coordinator._process_interest_for_account(
+            loan,
+            datetime(2026, 1, 2, 0, 0, tzinfo=UTC),
+        )
+
+        self.assertTrue(changed)
+        self.assertLess(loan.balance_minor, -10_000)
+        payout_call = coordinator._append_transaction.await_args_list[1]
+        self.assertEqual(payout_call.kwargs["tx_type"], TX_INTEREST_PAYOUT)
+        self.assertLess(payout_call.kwargs["amount_minor"], 0)
 
     async def test_append_transaction_adds_recent_item(self) -> None:
         coordinator = _build_coordinator()

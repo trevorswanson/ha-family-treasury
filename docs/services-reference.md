@@ -18,7 +18,10 @@ Runtime schemas/validation are implemented in:
 | - | - | - | - |
 | `account_id` | Yes | Unique account slug. | `"emma"` |
 | `display_name` | Yes | Friendly name shown in UI. | `"Emma"` |
-| `initial_balance` | No | Starting balance in major units. | `10.00` |
+| `account_type` | No | Account type (`primary`, `bucket`, `loan`). | `"loan"` |
+| `parent_account_id` | No | Parent primary account slug. | `"emma"` |
+| `initial_balance` | No | Starting balance for non-loan accounts. | `10.00` |
+| `loan_principal` | No | Required when `account_type` is `loan`. | `20.00` |
 | `apr_percent` | No | Account-specific APR override. | `3.5` |
 | `interest_calc_frequency` | No | Accrual interval. | `"daily"` |
 | `interest_payout_frequency` | No | Payout interval. | `"monthly"` |
@@ -45,6 +48,14 @@ data:
 - Initial onboarding for a new child account.
 - Creating an account with its own APR/currency settings.
 - Seeding an account with an opening balance.
+- Creating a loan account that disburses principal into the child primary account.
+
+**Loan Rules (MVP):**
+
+- `account_type: loan` requires `parent_account_id` and `loan_principal`.
+- Loan accounts do not allow `initial_balance`.
+- Parent account must exist and be a primary account.
+- `loan_principal` becomes `original_loan_principal` for payoff-progress tracking.
 
 ## `family_treasury.update_account`
 
@@ -164,6 +175,37 @@ data:
 - Administrative reconciliation.
 - One-time balance fix during migration.
 
+## `family_treasury.transfer`
+
+**Purpose:** Move funds between two accounts in the same primary-account tree.
+
+**Parameters:**
+
+| Parameter | Required | Description | Example |
+| - | - | - | - |
+| `source_account_id` | Yes | Source account slug to debit. | `"emma"` |
+| `destination_account_id` | Yes | Destination account slug. | `"emma_loan_1"` |
+| `amount` | Yes | Positive transfer amount. | `2.50` |
+| `description` | No | Optional note in `meta.description`. | `"Loan payment"` |
+
+**Example:**
+
+```yaml
+action: family_treasury.transfer
+data:
+  source_account_id: "emma"
+  destination_account_id: "emma_loan_1"
+  amount: 2.50
+  description: "Weekly loan payment"
+```
+
+**Transfer Rules (MVP):**
+
+- Source and destination must be active, distinct, same-currency accounts.
+- Transfers are only allowed inside the same ownership tree.
+- Loan accounts cannot be transfer sources.
+- Loan repayments must be `parent_primary -> loan`.
+
 ## `family_treasury.get_transactions`
 
 **Purpose:** Query transaction history with optional filters and pagination.
@@ -190,6 +232,8 @@ data:
     - "withdraw"
     - "adjustment"
     - "interest_payout"
+    - "transfer_out"
+    - "transfer_in"
   limit: 25
   offset: 0
 ```

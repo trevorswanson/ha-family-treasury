@@ -29,7 +29,25 @@ Behavior:
 
 - accrual accumulates into pending interest
 - payout transfers payable pending amount to principal
+  - savings-style accounts: payout increases balance
+  - loan accounts: payout decreases balance (more negative debt)
 - scheduler performs catch-up processing after downtime/restart
+- loan accrual uses absolute outstanding principal as the accrual basis
+
+Loan sensor interpretation:
+
+- `*_balance` is ledger principal only (signed), including prior payouts and
+  excluding currently pending accrued interest.
+- `*_pending_interest` is accrued interest not yet paid out.
+- `*_loan_principal` is `abs(*_balance)` for loan accounts (current principal,
+  not original principal).
+- `*_loan_original_principal` is the principal recorded at loan creation
+  (`original_loan_principal_minor`). Legacy loans created before this field was
+  added may show a fallback derived from current principal.
+- `*_loan_total_balance` is `*_loan_principal + *_loan_accrued_interest`, which
+  acts as a payoff estimate between payout runs.
+- `*_loan_payoff_progress` is payoff progress percentage:
+  `max(0, min(100, (original - total_owed) / original * 100))`.
 
 ## Transaction Semantics
 
@@ -44,6 +62,13 @@ Transactions are append-only ledger entries with fields including:
 
 Description is carried as `meta.description`.
 
+Transfer transactions use explicit types:
+
+- `transfer_out` (negative amount on source account)
+- `transfer_in` (positive amount on destination account)
+
+Paired transfer rows share `meta.transfer_id`.
+
 ## Storage Model
 
 - Account metadata and snapshots use Home Assistant `Store`.
@@ -53,6 +78,8 @@ Description is carried as `meta.description`.
 ## Invariants
 
 - `account_id` is slug-safe.
-- Withdrawals and negative adjustments cannot create negative balances.
+- Non-loan withdrawals and negative adjustments cannot create negative balances.
+- Loan accounts are liability accounts and cannot become positive balances.
+- Loan accounts are repaid through `transfer` from their parent primary account.
 - Ledger entries are appended, not in-place rewritten.
 - Currency changes on non-empty accounts are restricted.

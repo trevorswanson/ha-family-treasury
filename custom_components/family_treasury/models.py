@@ -57,6 +57,7 @@ class AccountRecord:
     calc_frequency: str = "daily"
     payout_frequency: str = "monthly"
     balance_minor: int = 0
+    original_loan_principal_minor: int | None = None
     pending_interest_micro_minor: int = 0
     last_calc_at: str | None = None
     last_payout_at: str | None = None
