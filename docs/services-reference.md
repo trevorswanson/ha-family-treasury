@@ -101,8 +101,7 @@ full subtree.
 | Parameter | Required | Description | Example |
 | - | - | - | - |
 | `account_id` | Yes | Account slug to delete. | `"emma_bucket"` |
-| `balance_mode` | No | How to handle remaining balance (`disburse_to_parent`,
-`erase`). Defaults to `disburse_to_parent`. | `"erase"` |
+| `balance_mode` | No | How to handle remaining balance (`disburse_to_parent`,`erase`). Defaults to `disburse_to_parent`. | `"erase"` |
 
 **Example:**
 
