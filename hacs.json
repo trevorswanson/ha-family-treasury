@@ -1,6 +1,8 @@
 {
   "name": "Family Treasury",
   "content_in_root": false,
+  "zip_release": true,
+  "filename": "family_treasury.zip",
   "render_readme": true,
   "homeassistant": "2026.3.0"
 }
