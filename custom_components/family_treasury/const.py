@@ -12,8 +12,6 @@ DATA_SERVICES_UNSUB = "services_unsub"
 DATA_UPDATE_LISTENER = "update_listener"
 DATA_FRONTEND_STATIC_REGISTERED = "frontend_static_registered"
 DATA_FRONTEND_JS_ADDED = "frontend_js_added"
-DATA_FRONTEND_RESOURCE_ID = "frontend_resource_id"
-DATA_FRONTEND_RESOURCE_MANAGED = "frontend_resource_managed"
 DATA_FRONTEND_RETRY_UNSUB = "frontend_retry_unsub"
 
 STORE_VERSION = 1

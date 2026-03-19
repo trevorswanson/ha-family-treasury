@@ -52,7 +52,10 @@ The integration automatically:
 
 1. Serves card JavaScript from `/family_treasury/family-treasury-transactions-card.js`
 2. Registers it via `frontend.add_extra_js_url`
-3. Adds Lovelace storage resource entry in storage mode when needed
+
+It does not modify Home Assistant's Lovelace resource storage. This avoids
+the integration taking ownership of shared frontend resources during startup
+or shutdown.
 
 ## Troubleshooting
 

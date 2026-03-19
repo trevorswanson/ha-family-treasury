@@ -14,6 +14,10 @@ If startup order delays frontend/lovelace registration, restart once and
 re-check. The integration includes retry logic when frontend/lovelace become
 available.
 
+Family Treasury does not write to Lovelace resource storage. If other custom
+resources disappear after a restart, inspect Home Assistant or another
+integration that manages `.storage/lovelace_resources`.
+
 ## Service Validation Errors
 
 Use [Services Reference](services-reference.md) to verify payload shape.

@@ -10,19 +10,13 @@ from typing import Any
 
 from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.components.lovelace.const import (
-    CONF_RESOURCE_TYPE_WS,
-    LOVELACE_DATA,
-    MODE_STORAGE,
-)
-from homeassistant.const import CONF_ID, CONF_TYPE, CONF_URL, EVENT_COMPONENT_LOADED
+from homeassistant.components.lovelace.const import LOVELACE_DATA
+from homeassistant.const import EVENT_COMPONENT_LOADED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 
 from .const import (
     DATA_FRONTEND_JS_ADDED,
-    DATA_FRONTEND_RESOURCE_ID,
-    DATA_FRONTEND_RESOURCE_MANAGED,
     DATA_FRONTEND_RETRY_UNSUB,
     DATA_FRONTEND_STATIC_REGISTERED,
     DATA_RUNTIME,
@@ -123,8 +117,8 @@ async def _async_setup_card_frontend(
         else:
             domain_data[DATA_FRONTEND_JS_ADDED] = True
 
-    lovelace_pending = await _async_ensure_lovelace_resource(hass, domain_data)
-    needs_retry = needs_retry or lovelace_pending
+    if hass.data.get(LOVELACE_DATA) is None:
+        needs_retry = True
 
     if needs_retry:
         _ensure_frontend_retry_listener(hass, domain_data)
@@ -140,25 +134,6 @@ async def _async_unload_card_frontend(
     if domain_data.pop(DATA_FRONTEND_JS_ADDED, False):
         with suppress(KeyError):
             remove_extra_js_url(hass, FRONTEND_TRANSACTIONS_CARD_URL)
-
-    resource_id = domain_data.pop(DATA_FRONTEND_RESOURCE_ID, None)
-    managed = bool(domain_data.pop(DATA_FRONTEND_RESOURCE_MANAGED, False))
-    if not managed or not resource_id:
-        return
-
-    lovelace_data = hass.data.get(LOVELACE_DATA)
-    if lovelace_data is None:
-        return
-
-    resources = lovelace_data.resources
-    if not hasattr(resources, "async_delete_item"):
-        return
-
-    if hasattr(resources, "async_load"):
-        await resources.async_load()
-
-    with suppress(KeyError):
-        await resources.async_delete_item(resource_id)
 
 
 async def _async_ensure_card_static_path(
@@ -182,56 +157,6 @@ async def _async_ensure_card_static_path(
     if isawaitable(result):
         await result
     domain_data[DATA_FRONTEND_STATIC_REGISTERED] = True
-
-
-async def _async_ensure_lovelace_resource(
-    hass: HomeAssistant, domain_data: dict[str, Any]
-) -> bool:
-    lovelace_data = hass.data.get(LOVELACE_DATA)
-    if lovelace_data is None:
-        return True
-    if lovelace_data.resource_mode != MODE_STORAGE:
-        return False
-
-    resources = lovelace_data.resources
-    if not hasattr(resources, "async_items") or not hasattr(resources, "async_create_item"):
-        return False
-
-    if hasattr(resources, "async_load"):
-        await resources.async_load()
-
-    existing = next(
-        (
-            item
-            for item in resources.async_items()
-            if item.get(CONF_URL) == FRONTEND_TRANSACTIONS_CARD_URL
-        ),
-        None,
-    )
-    if existing is not None:
-        resource_id = existing.get(CONF_ID)
-        domain_data[DATA_FRONTEND_RESOURCE_ID] = resource_id
-        domain_data[DATA_FRONTEND_RESOURCE_MANAGED] = False
-        if (
-            resource_id is not None
-            and existing.get(CONF_TYPE) != "module"
-            and hasattr(resources, "async_update_item")
-        ):
-            await resources.async_update_item(
-                resource_id,
-                {CONF_RESOURCE_TYPE_WS: "module"},
-            )
-        return False
-
-    created = await resources.async_create_item(
-        {
-            CONF_URL: FRONTEND_TRANSACTIONS_CARD_URL,
-            CONF_RESOURCE_TYPE_WS: "module",
-        }
-    )
-    domain_data[DATA_FRONTEND_RESOURCE_ID] = created.get(CONF_ID)
-    domain_data[DATA_FRONTEND_RESOURCE_MANAGED] = True
-    return False
 
 
 def _ensure_frontend_retry_listener(
