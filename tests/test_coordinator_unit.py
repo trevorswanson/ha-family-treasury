@@ -16,6 +16,7 @@ try:
         ACCOUNT_TYPE_PRIMARY,
         BALANCE_MODE_ERASE,
         CONF_ACCOUNT_ID,
+        CONF_ACCOUNT_IDS,
         CONF_ACCOUNT_TYPE,
         CONF_APR_PERCENT,
         CONF_CURRENCY_CODE,
@@ -313,7 +314,9 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["total"], 2)
         self.assertIn("formatted_amount", result["transactions"][0])
+        self.assertIn("formatted_balance_after", result["transactions"][0])
         self.assertNotIn("formatted_amount", result["transactions"][1])
+        self.assertNotIn("formatted_balance_after", result["transactions"][1])
         self.assertNotIn("description", result["transactions"][0])
         self.assertNotIn("description", result["transactions"][1])
         self.assertEqual(result["transactions"][0]["meta"]["description"], "Allowance")
@@ -370,6 +373,56 @@ class TestCoordinatorUnit(unittest.IsolatedAsyncioTestCase):
 
         called_kwargs = coordinator.storage.async_list_transactions.await_args.kwargs
         self.assertEqual(called_kwargs["tx_types"], {"deposit", "withdraw"})
+
+    async def test_async_get_transactions_accepts_multiple_accounts(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator._accounts = {
+            "emma": AccountRecord(account_id="emma", display_name="Emma"),
+            "sam": AccountRecord(account_id="sam", display_name="Sam"),
+        }
+        coordinator._async_prime_formatter_cache = AsyncMock()
+        coordinator.storage.async_list_transactions = AsyncMock(
+            return_value={
+                "transactions": [],
+                "total": 0,
+                "limit": 10,
+                "offset": 0,
+                "next_offset": None,
+            }
+        )
+
+        await coordinator.async_get_transactions(
+            {
+                CONF_ACCOUNT_IDS: ["emma", "sam"],
+                CONF_LIMIT: 10,
+                CONF_OFFSET: 0,
+            }
+        )
+
+        called_kwargs = coordinator.storage.async_list_transactions.await_args.kwargs
+        self.assertEqual(called_kwargs["account_ids"], {"emma", "sam"})
+
+    async def test_account_state_includes_next_interest_payout_at(self) -> None:
+        coordinator = _build_coordinator()
+        coordinator._accounts = {
+            "emma": AccountRecord(
+                account_id="emma",
+                display_name="Emma",
+                currency_code="USD",
+                locale="en_US",
+                payout_frequency="monthly",
+                created_at="2026-01-05T00:00:00+00:00",
+                last_payout_at="2026-02-01T00:00:00+00:00",
+            )
+        }
+
+        state = coordinator.account_state("emma")
+
+        self.assertIsNotNone(state)
+        self.assertEqual(
+            state["next_interest_payout_at"],
+            "2026-03-01T00:00:00+00:00",
+        )
 
     async def test_apply_balance_change_and_withdraw(self) -> None:
         coordinator = _build_coordinator()

@@ -1,4 +1,30 @@
 {
+  "common": {
+    "transaction_type_filter": {
+      "deposit": "Deposit",
+      "withdraw": "Withdrawal",
+      "adjustment": "Adjustment",
+      "interest_accrual": "Interest Accrual",
+      "interest_payout": "Interest Payout",
+      "transfer_out": "Transfer Out",
+      "transfer_in": "Transfer In"
+    },
+    "transaction_type_row": {
+      "deposit": "Deposit",
+      "withdraw": "Withdrawal",
+      "adjustment": "Adjustment",
+      "interest_accrual": "Interest Accrual",
+      "interest_payout": "Interest Payout",
+      "transfer_out": "Transfer",
+      "transfer_in": "Transfer"
+    },
+    "account_summary": {
+      "account": "Account",
+      "balance": "Balance",
+      "pending_interest": "Pending Interest",
+      "next_interest_payout": "Next Interest Payout"
+    }
+  },
   "config": {
     "step": {
       "user": {

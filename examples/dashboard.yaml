@@ -24,6 +24,14 @@ views:
             grid_options:
               columns: 36
               rows: auto
+          - type: custom:family-treasury-account-summary
+            title: Account Summary
+            parent_account_id: emma
+            show_pending_interest: true
+            show_next_interest_payout: true
+            grid_options:
+              columns: 36
+              rows: auto
         column_span: 3
       - type: grid
         cards:

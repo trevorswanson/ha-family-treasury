@@ -15,6 +15,7 @@ from .const import (
     ACCOUNT_TYPES,
     BALANCE_MODES,
     CONF_ACCOUNT_ID,
+    CONF_ACCOUNT_IDS,
     CONF_ACCOUNT_TYPE,
     CONF_BALANCE_MODE,
     CONF_ACTIVE,
@@ -111,6 +112,7 @@ TRANSFER_SCHEMA = vol.Schema(
 GET_TRANSACTIONS_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_ACCOUNT_ID): cv.slug,
+        vol.Optional(CONF_ACCOUNT_IDS): [cv.slug],
         vol.Optional(CONF_START): vol.Any(cv.datetime, cv.string),
         vol.Optional(CONF_END): vol.Any(cv.datetime, cv.string),
         vol.Optional(CONF_TYPE): TX_TYPE_FILTER,

@@ -310,6 +310,15 @@ get_transactions:
       required: false
       selector:
         text:
+    account_ids:
+      name: Account IDs
+      description: Optional list of account ID slugs to include.
+      example:
+        - emma
+        - sam
+      required: false
+      selector:
+        object:
     start:
       name: Start
       description: Optional start datetime (ISO format).

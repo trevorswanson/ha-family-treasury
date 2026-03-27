@@ -46,6 +46,7 @@ class _CoordinatorStub:
                 "locale": "en_US",
                 "last_interest_calc_at": "2026-02-01T00:00:00+00:00",
                 "last_interest_payout_at": "2026-02-01T00:00:00+00:00",
+                "next_interest_payout_at": "2026-03-01T00:00:00+00:00",
                 "recent_transactions": [{"tx_id": 1}],
                 "formatted_balance": "$10.00",
                 "formatted_pending_interest": "$0.05",
@@ -83,6 +84,10 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sensor.suggested_display_precision, 2)
         self.assertIn("formatted_balance", sensor.extra_state_attributes)
         self.assertEqual(sensor.extra_state_attributes["account_type"], "primary")
+        self.assertEqual(
+            sensor.extra_state_attributes["next_interest_payout_at"],
+            "2026-03-01T00:00:00+00:00",
+        )
 
     async def test_pending_interest_sensor_properties(self) -> None:
         coordinator = _CoordinatorStub()
@@ -172,6 +177,7 @@ class TestSensors(unittest.IsolatedAsyncioTestCase):
                 "locale": "en_US",
                 "last_interest_calc_at": None,
                 "last_interest_payout_at": None,
+                "next_interest_payout_at": None,
                 "recent_transactions": [],
                 "formatted_balance": "$0.00",
                 "formatted_pending_interest": "$0.00",

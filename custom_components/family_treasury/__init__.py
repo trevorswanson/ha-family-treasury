@@ -16,15 +16,14 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 
 from .const import (
-    DATA_FRONTEND_JS_ADDED,
+    DATA_FRONTEND_JS_ADDED_URLS,
     DATA_FRONTEND_RETRY_UNSUB,
     DATA_FRONTEND_STATIC_REGISTERED,
     DATA_RUNTIME,
     DATA_SERVICES_UNSUB,
     DOMAIN,
     FRONTEND_DIR,
-    FRONTEND_TRANSACTIONS_CARD_FILENAME,
-    FRONTEND_TRANSACTIONS_CARD_URL,
+    FRONTEND_CARD_MODULES,
     PLATFORMS,
 )
 from .coordinator import FamilyTreasuryCoordinator
@@ -109,13 +108,16 @@ async def _async_setup_card_frontend(
     await _async_ensure_card_static_path(hass, domain_data)
 
     needs_retry = False
-    if not domain_data.get(DATA_FRONTEND_JS_ADDED):
+    added_urls: set[str] = domain_data.setdefault(DATA_FRONTEND_JS_ADDED_URLS, set())
+    for _filename, url in FRONTEND_CARD_MODULES:
+        if url in added_urls:
+            continue
         try:
-            add_extra_js_url(hass, FRONTEND_TRANSACTIONS_CARD_URL)
+            add_extra_js_url(hass, url)
         except KeyError:
             needs_retry = True
         else:
-            domain_data[DATA_FRONTEND_JS_ADDED] = True
+            added_urls.add(url)
 
     if hass.data.get(LOVELACE_DATA) is None:
         needs_retry = True
@@ -131,9 +133,9 @@ async def _async_unload_card_frontend(
 ) -> None:
     _clear_frontend_retry_listener(domain_data)
 
-    if domain_data.pop(DATA_FRONTEND_JS_ADDED, False):
+    for url in domain_data.pop(DATA_FRONTEND_JS_ADDED_URLS, set()):
         with suppress(KeyError):
-            remove_extra_js_url(hass, FRONTEND_TRANSACTIONS_CARD_URL)
+            remove_extra_js_url(hass, url)
 
 
 async def _async_ensure_card_static_path(
@@ -142,16 +144,14 @@ async def _async_ensure_card_static_path(
     if domain_data.get(DATA_FRONTEND_STATIC_REGISTERED):
         return
 
-    module_path = (
-        Path(__file__).resolve().parent / FRONTEND_DIR / FRONTEND_TRANSACTIONS_CARD_FILENAME
-    )
     result = hass.http.async_register_static_paths(
         [
             StaticPathConfig(
-                FRONTEND_TRANSACTIONS_CARD_URL,
-                str(module_path),
+                url,
+                str(Path(__file__).resolve().parent / FRONTEND_DIR / filename),
                 cache_headers=False,
             )
+            for filename, url in FRONTEND_CARD_MODULES
         ]
     )
     if isawaitable(result):

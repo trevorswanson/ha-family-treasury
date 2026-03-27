@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 HA_AVAILABLE = True
 try:
@@ -16,6 +16,8 @@ try:
         DATA_RUNTIME,
         DATA_SERVICES_UNSUB,
         DOMAIN,
+        FRONTEND_ACCOUNT_SUMMARY_CARD_URL,
+        FRONTEND_CARD_MODULES,
         FRONTEND_TRANSACTIONS_CARD_URL,
     )
 except ModuleNotFoundError:
@@ -84,7 +86,13 @@ class TestInit(unittest.IsolatedAsyncioTestCase):
             setup_ok = await integration.async_setup_entry(hass, entry)
             self.assertTrue(setup_ok)
 
-            add_js.assert_called_once_with(hass, FRONTEND_TRANSACTIONS_CARD_URL)
+            self.assertEqual(
+                add_js.call_args_list,
+                [
+                    call(hass, FRONTEND_TRANSACTIONS_CARD_URL),
+                    call(hass, FRONTEND_ACCOUNT_SUMMARY_CARD_URL),
+                ],
+            )
 
             domain_data = hass.data[DOMAIN]
             self.assertTrue(domain_data[DATA_FRONTEND_STATIC_REGISTERED])
@@ -93,7 +101,13 @@ class TestInit(unittest.IsolatedAsyncioTestCase):
 
             unload_ok = await integration.async_unload_entry(hass, entry)
             self.assertTrue(unload_ok)
-            remove_js.assert_called_once_with(hass, FRONTEND_TRANSACTIONS_CARD_URL)
+            remove_js.assert_has_calls(
+                [
+                    call(hass, FRONTEND_TRANSACTIONS_CARD_URL),
+                    call(hass, FRONTEND_ACCOUNT_SUMMARY_CARD_URL),
+                ],
+                any_order=True,
+            )
             unregister.assert_called_once()
             self.assertNotIn(DOMAIN, hass.data)
 
@@ -105,7 +119,7 @@ class TestInit(unittest.IsolatedAsyncioTestCase):
             await integration._async_setup_card_frontend(hass, domain_data)
             await integration._async_setup_card_frontend(hass, domain_data)
 
-        self.assertEqual(add_js.call_count, 1)
+        self.assertEqual(add_js.call_count, len(FRONTEND_CARD_MODULES))
         self.assertEqual(hass.http.async_register_static_paths.call_count, 1)
 
     async def test_setup_supports_async_static_path_registration(self) -> None:

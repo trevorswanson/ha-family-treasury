@@ -11,7 +11,7 @@ DATA_RUNTIME = "runtime"
 DATA_SERVICES_UNSUB = "services_unsub"
 DATA_UPDATE_LISTENER = "update_listener"
 DATA_FRONTEND_STATIC_REGISTERED = "frontend_static_registered"
-DATA_FRONTEND_JS_ADDED = "frontend_js_added"
+DATA_FRONTEND_JS_ADDED_URLS = "frontend_js_added_urls"
 DATA_FRONTEND_RETRY_UNSUB = "frontend_retry_unsub"
 
 STORE_VERSION = 1
@@ -69,6 +69,7 @@ CONF_LOCALE = "locale"
 CONF_APPLY_DEFAULTS_TO_EXISTING = "apply_defaults_to_existing"
 
 CONF_ACCOUNT_ID = "account_id"
+CONF_ACCOUNT_IDS = "account_ids"
 CONF_ACCOUNT_TYPE = "account_type"
 CONF_PARENT_ACCOUNT_ID = "parent_account_id"
 CONF_DISPLAY_NAME = "display_name"
@@ -102,6 +103,7 @@ ATTR_FORMATTED_BALANCE = "formatted_balance"
 ATTR_FORMATTED_PENDING_INTEREST = "formatted_pending_interest"
 ATTR_LAST_INTEREST_CALC_AT = "last_interest_calc_at"
 ATTR_LAST_INTEREST_PAYOUT_AT = "last_interest_payout_at"
+ATTR_NEXT_INTEREST_PAYOUT_AT = "next_interest_payout_at"
 ATTR_RECENT_TRANSACTIONS = "recent_transactions"
 
 SERVICE_CREATE_ACCOUNT = "create_account"
@@ -120,4 +122,18 @@ FRONTEND_DIR = "frontend"
 FRONTEND_TRANSACTIONS_CARD_FILENAME = "family-treasury-transactions-card.js"
 FRONTEND_TRANSACTIONS_CARD_URL = (
     f"/{DOMAIN}/{FRONTEND_TRANSACTIONS_CARD_FILENAME}"
+)
+FRONTEND_ACCOUNT_SUMMARY_CARD_FILENAME = "family-treasury-account-summary-card.js"
+FRONTEND_ACCOUNT_SUMMARY_CARD_URL = (
+    f"/{DOMAIN}/{FRONTEND_ACCOUNT_SUMMARY_CARD_FILENAME}"
+)
+FRONTEND_CARD_MODULES = (
+    (
+        FRONTEND_TRANSACTIONS_CARD_FILENAME,
+        FRONTEND_TRANSACTIONS_CARD_URL,
+    ),
+    (
+        FRONTEND_ACCOUNT_SUMMARY_CARD_FILENAME,
+        FRONTEND_ACCOUNT_SUMMARY_CARD_URL,
+    ),
 )

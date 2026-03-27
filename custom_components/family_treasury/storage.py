@@ -138,7 +138,7 @@ class FamilyTreasuryStorage:
     async def async_list_transactions(
         self,
         *,
-        account_id: str | None,
+        account_ids: set[str] | None,
         start: datetime | None,
         end: datetime | None,
         tx_types: set[str] | None,
@@ -155,7 +155,7 @@ class FamilyTreasuryStorage:
         for month_key in sorted(self._metadata.get("ledger_partitions", []), reverse=True):
             partition = await self._async_load_partition(month_key)
             for row in partition["transactions"]:
-                if account_id and row.get("account_id") != account_id:
+                if account_ids and row.get("account_id") not in account_ids:
                     continue
                 if tx_types and row.get("type") not in tx_types:
                     continue

@@ -33,8 +33,11 @@ from .const import (
     ATTR_LAST_INTEREST_CALC_AT,
     ATTR_LAST_INTEREST_PAYOUT_AT,
     ATTR_LOCALE,
+    ATTR_NEXT_INTEREST_PAYOUT_AT,
     ATTR_PARENT_ACCOUNT_ID,
     ATTR_RECENT_TRANSACTIONS,
+    CONF_ACCOUNT_ID,
+    CONF_ACCOUNT_IDS,
     CONF_ACCOUNT_TYPE,
     CONF_BALANCE_MODE,
     CONF_APR_PERCENT,
@@ -211,6 +214,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             ),
             ATTR_LAST_INTEREST_CALC_AT: account.last_calc_at,
             ATTR_LAST_INTEREST_PAYOUT_AT: account.last_payout_at,
+            ATTR_NEXT_INTEREST_PAYOUT_AT: self._next_interest_payout_at(account),
             ATTR_RECENT_TRANSACTIONS: self._recent_transactions.get(account_id, []),
             "balance_major": balance_major,
             "pending_interest_major": pending_interest_major,
@@ -228,6 +232,21 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             "is_loan": is_loan,
             "active": account.active,
         }
+
+    def _next_interest_payout_at(self, account: AccountRecord) -> str | None:
+        """Return the next scheduled payout boundary in UTC ISO format."""
+
+        tz = dt_util.get_time_zone(self.hass.config.time_zone)
+        last_payout_utc = parse_datetime(account.last_payout_at) or parse_datetime(
+            account.created_at
+        )
+        if last_payout_utc is None:
+            return None
+
+        payout_cursor = last_payout_utc.astimezone(tz)
+        return next_boundary(payout_cursor, account.payout_frequency).astimezone(
+            UTC
+        ).isoformat()
 
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         """Coordinator poll method."""
@@ -694,9 +713,24 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
     async def async_get_transactions(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Return filtered transaction history."""
 
-        account_id = payload.get("account_id")
-        if account_id and account_id not in self._accounts:
-            raise ValueError(f"Unknown account: {account_id}")
+        raw_account_id = payload.get(CONF_ACCOUNT_ID)
+        raw_account_ids = payload.get(CONF_ACCOUNT_IDS)
+        account_ids: set[str] | None = None
+        if raw_account_id is not None:
+            account_ids = {str(raw_account_id)}
+        if raw_account_ids is not None:
+            parsed_account_ids = {
+                str(account_id).strip()
+                for account_id in raw_account_ids
+                if str(account_id).strip()
+            }
+            account_ids = (account_ids or set()) | parsed_account_ids
+        if account_ids == set():
+            account_ids = None
+        if account_ids:
+            unknown_accounts = sorted(account_ids - set(self._accounts))
+            if unknown_accounts:
+                raise ValueError(f"Unknown account: {', '.join(unknown_accounts)}")
 
         start = self._parse_service_datetime(payload.get(CONF_START))
         end = self._parse_service_datetime(payload.get(CONF_END))
@@ -725,7 +759,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
         await self._async_prime_formatter_cache()
         result = await self.storage.async_list_transactions(
-            account_id=account_id,
+            account_ids=account_ids,
             start=start,
             end=end,
             tx_types=tx_types,
@@ -746,8 +780,18 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                     "amount_major": str(
                         minor_to_major_decimal(row["amount_minor"], account.currency_code)
                     ),
+                    "balance_after_major": str(
+                        minor_to_major_decimal(
+                            row["balance_after_minor"], account.currency_code
+                        )
+                    ),
                     "formatted_amount": format_minor_amount(
                         row["amount_minor"],
+                        account.currency_code,
+                        account.locale,
+                    ),
+                    "formatted_balance_after": format_minor_amount(
+                        row["balance_after_minor"],
                         account.currency_code,
                         account.locale,
                     ),
@@ -1071,7 +1115,7 @@ class FamilyTreasuryCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
     async def _load_recent_transactions(self, account_id: str) -> list[dict[str, Any]]:
         result = await self.storage.async_list_transactions(
-            account_id=account_id,
+            account_ids={account_id},
             start=None,
             end=None,
             tx_types=None,

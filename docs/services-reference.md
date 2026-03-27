@@ -244,7 +244,8 @@ data:
 
 | Parameter | Required | Description | Example |
 | - | - | - | - |
-| `account_id` | No | Optional account slug filter. | `"emma"` |
+| `account_id` | No | Optional single account slug filter. | `"emma"` |
+| `account_ids` | No | Optional list of account slug filters. | `["emma", "sam"]` |
 | `start` | No | ISO datetime start (inclusive). | `"2026-02-01T00:00Z"` |
 | `end` | No | ISO datetime upper bound (inclusive). | `"2026-02-29T23:59:59Z"` |
 | `type` | No | Type filter string or list. | `["deposit", "withdraw"]` |
@@ -273,6 +274,9 @@ data:
 - Build paginated transaction views in Lovelace.
 - Exclude `interest_accrual` from child-facing lists.
 - Pull filtered history in scripts/automations.
+
+If both `account_id` and `account_ids` are provided, the service treats them as
+a combined account filter.
 
 **Expected Response (with `return_response: true`):**
 

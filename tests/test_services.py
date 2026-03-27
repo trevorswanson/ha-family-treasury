@@ -14,6 +14,7 @@ try:
 
     from custom_components.family_treasury.const import (
         CONF_ACCOUNT_ID,
+        CONF_ACCOUNT_IDS,
         CONF_ACCOUNT_TYPE,
         CONF_BALANCE_MODE,
         CONF_AMOUNT,
@@ -209,6 +210,9 @@ class TestServices(unittest.IsolatedAsyncioTestCase):
 
         validated_multi = schema({CONF_TYPE: ["deposit", "withdraw"]})
         self.assertEqual(validated_multi[CONF_TYPE], ["deposit", "withdraw"])
+
+        validated_accounts = schema({CONF_ACCOUNT_IDS: ["emma", "sam"]})
+        self.assertEqual(validated_accounts[CONF_ACCOUNT_IDS], ["emma", "sam"])
 
         with self.assertRaises(vol.Invalid):
             schema({CONF_TYPE: ["deposit", "unknown"]})
